@@ -1,0 +1,9 @@
+anthropic
+google-api-python-client
+youtube-transcript-api
+yt-dlp
+Pillow
+python-dotenv
+requests
+twscrape
+playwright
