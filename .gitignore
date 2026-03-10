@@ -1,1 +1,38 @@
+# Environment
 .env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Output / generated files
+output/
+logs/
+
+# Data
+data/pipeline.db
+
+# Style profiles (generated, not authored)
+style_profiles/
+
+# Assets (large binary files)
+assets/backgrounds/
+assets/music/
+
+# YouTube OAuth credentials
+*oauth*.json
+client_secret*.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+CLAUDE.md
