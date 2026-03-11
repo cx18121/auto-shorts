@@ -21,9 +21,9 @@
 
 ### Niche Configuration
 
-- [ ] **NICHE-01**: Each niche is defined in config with: name, subreddits, twitter accounts, voice ID, posting accounts
-- [ ] **NICHE-02**: Three niches configured out of the box: hypothetical-scenarios, relationships, finance-hustle
-- [ ] **NICHE-03**: Niche config drives which content is scraped, generated, and which channel it posts to
+- [x] **NICHE-01**: Each niche is defined in config with: name, subreddits, twitter accounts, voice ID, posting accounts
+- [x] **NICHE-02**: Three niches configured out of the box: hypothetical-scenarios, relationships, finance-hustle
+- [x] **NICHE-03**: Niche config drives which content is scraped, generated, and which channel it posts to
 
 ### AI Content Generation
 
@@ -55,9 +55,9 @@
 
 ### Multi-Channel Orchestration
 
-- [ ] **MULTI-01**: Each niche channel operates with its own isolated backlog, config, and upload credentials
+- [x] **MULTI-01**: Each niche channel operates with its own isolated backlog, config, and upload credentials
 - [ ] **MULTI-02**: A single scheduler process manages all channels
-- [ ] **MULTI-03**: CLI can target a specific channel or run all channels
+- [x] **MULTI-03**: CLI can target a specific channel or run all channels
 
 ## v2 Requirements
 
@@ -93,11 +93,11 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| NICHE-01 | Phase 1 | Pending |
-| NICHE-02 | Phase 1 | Pending |
-| NICHE-03 | Phase 1 | Pending |
-| MULTI-01 | Phase 1 | Pending |
-| MULTI-03 | Phase 1 | Pending |
+| NICHE-01 | Phase 1 | Complete |
+| NICHE-02 | Phase 1 | Complete |
+| NICHE-03 | Phase 1 | Complete |
+| MULTI-01 | Phase 1 | Complete |
+| MULTI-03 | Phase 1 | Complete |
 | REDDIT-01 | Phase 2 | Pending |
 | REDDIT-02 | Phase 2 | Pending |
 | REDDIT-03 | Phase 2 | Pending |
