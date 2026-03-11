@@ -1,0 +1,60 @@
+# channels.yaml.example
+# Copy this to channels.yaml and fill in your ElevenLabs voice IDs.
+# Upload credential fields are placeholders — Phase 4 wires them up.
+# All other fields are pre-populated and ready to use.
+
+hypothetical-scenarios:
+  name: "Hypothetical Scenarios"
+  format: storytelling
+  voice_id: "REPLACE_WITH_ELEVENLABS_VOICE_ID"
+  subreddits:
+    - hypothetical
+    - AskReddit
+    - WouldYouRather
+    - changemyview
+    - philosophy
+  twitter_accounts:
+    - WhatIfAlt
+    - HypotheticalQ
+    - Rainmaker1973
+  youtube_client_id: ""
+  youtube_client_secret: ""
+  instagram_access_token: ""
+
+relationships:
+  name: "Relationships"
+  format: storytelling
+  voice_id: "REPLACE_WITH_ELEVENLABS_VOICE_ID"
+  subreddits:
+    - relationship_advice
+    - AITAH
+    - AmItheAsshole
+    - tifu
+    - TrueOffMyChest
+  twitter_accounts:
+    - RelationshipAdvic
+    - AskingRelations
+    - BestDearAbby
+  youtube_client_id: ""
+  youtube_client_secret: ""
+  instagram_access_token: ""
+
+finance-hustle:
+  name: "Finance & Hustle"
+  format: tweets
+  voice_id: "REPLACE_WITH_ELEVENLABS_VOICE_ID"
+  subreddits:
+    - personalfinance
+    - financialindependence
+    - Entrepreneur
+    - passive_income
+    - investing
+  twitter_accounts:
+    - naval
+    - morganhousel
+    - SahilBloom
+    - dickiebush
+    - TrungTPhan
+  youtube_client_id: ""
+  youtube_client_secret: ""
+  instagram_access_token: ""
