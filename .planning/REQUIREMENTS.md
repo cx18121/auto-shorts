@@ -93,6 +93,11 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| NICHE-01 | Phase 1 | Pending |
+| NICHE-02 | Phase 1 | Pending |
+| NICHE-03 | Phase 1 | Pending |
+| MULTI-01 | Phase 1 | Pending |
+| MULTI-03 | Phase 1 | Pending |
 | REDDIT-01 | Phase 2 | Pending |
 | REDDIT-02 | Phase 2 | Pending |
 | REDDIT-03 | Phase 2 | Pending |
@@ -101,34 +106,29 @@
 | BACKLOG-02 | Phase 2 | Pending |
 | BACKLOG-03 | Phase 2 | Pending |
 | BACKLOG-04 | Phase 2 | Pending |
-| NICHE-01 | Phase 1 | Pending |
-| NICHE-02 | Phase 1 | Pending |
-| NICHE-03 | Phase 1 | Pending |
-| GEN-01 | Phase 3 | Pending |
-| GEN-02 | Phase 3 | Pending |
-| GEN-03 | Phase 3 | Pending |
 | QUALITY-01 | Phase 2 | Pending |
 | QUALITY-02 | Phase 2 | Pending |
 | QUALITY-03 | Phase 2 | Pending |
+| GEN-01 | Phase 3 | Pending |
+| GEN-02 | Phase 3 | Pending |
+| GEN-03 | Phase 3 | Pending |
 | UPLOAD-01 | Phase 4 | Pending |
 | UPLOAD-02 | Phase 4 | Pending |
 | UPLOAD-03 | Phase 4 | Pending |
 | UPLOAD-04 | Phase 4 | Pending |
 | UPLOAD-05 | Phase 4 | Pending |
-| SCHED-01 | Phase 5 | Pending |
-| SCHED-02 | Phase 5 | Pending |
-| SCHED-03 | Phase 5 | Pending |
-| SCHED-04 | Phase 5 | Pending |
-| SCHED-05 | Phase 5 | Pending |
-| MULTI-01 | Phase 1 | Pending |
-| MULTI-02 | Phase 5 | Pending |
-| MULTI-03 | Phase 1 | Pending |
+| SCHED-01 | Phase 4 | Pending |
+| SCHED-02 | Phase 4 | Pending |
+| SCHED-03 | Phase 4 | Pending |
+| SCHED-04 | Phase 4 | Pending |
+| SCHED-05 | Phase 4 | Pending |
+| MULTI-02 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 28 total
-- Mapped to phases: 28
+- v1 requirements: 30 total
+- Mapped to phases: 30
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-11*
-*Last updated: 2026-03-11 after initial definition*
+*Last updated: 2026-03-11 after roadmap creation*
