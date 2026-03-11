@@ -28,7 +28,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. All three niches (hypothetical-scenarios, relationships, finance-hustle) are configured out of the box with correct subreddits and Twitter accounts
   3. Each niche channel has its own isolated backlog partition and upload credential store — no data bleeds across channels
   4. CLI accepts a `--channel` flag (or "all") and routes all downstream operations through that channel's config
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — channels.yaml.example + test scaffolds (RED state TDD contracts)
+- [ ] 01-02-PLAN.md — config.py extended with ChannelConfig dataclass and load_channels/get_channel
+- [ ] 01-03-PLAN.md — main.py wired with --channel global flag and _dispatch_command routing
 
 ### Phase 2: Content Pipeline
 **Goal**: Reddit posts and tweets are automatically scraped, scored, and stored in a per-channel backlog that the scheduler can pull from — fully decoupled from video generation
@@ -72,7 +77,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Niche Config + Multi-Channel Foundation | 0/TBD | Not started | - |
+| 1. Niche Config + Multi-Channel Foundation | 0/3 | Not started | - |
 | 2. Content Pipeline | 0/TBD | Not started | - |
 | 3. AI Story Generation | 0/TBD | Not started | - |
 | 4. Upload + Scheduler | 0/TBD | Not started | - |
