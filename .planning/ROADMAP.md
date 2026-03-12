@@ -80,7 +80,12 @@ Plans:
   4. The scheduler runs automatically at configured times (e.g. 09:00 and 21:00) using cron or APScheduler without any manual trigger
   5. Each channel's schedule is independently configurable; pausing one channel does not affect the others
   6. Upload records (platform, video ID, timestamp) are stored in the DB and queryable via CLI
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — pipeline/upload.py: YouTube upload, Instagram upload, metadata generation, DB logging, retry logic + tests
+- [ ] 04-02-PLAN.md — ChannelConfig extensions (enabled, hashtags, instagram_user_id) + setup-youtube/setup-instagram CLI commands
+- [ ] 04-03-PLAN.md — run-cycle orchestrator + upload-history CLI + cron scheduling documentation + human verification
 
 ## Progress
 
@@ -92,4 +97,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Niche Config + Multi-Channel Foundation | 3/3 | Complete   | 2026-03-12 |
 | 2. Content Pipeline | 6/6 | Complete   | 2026-03-12 |
 | 3. AI Story Generation | 2/2 | Complete   | 2026-03-12 |
-| 4. Upload + Scheduler | 0/TBD | Not started | - |
+| 4. Upload + Scheduler | 0/3 | Not started | - |
