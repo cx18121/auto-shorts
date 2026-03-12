@@ -47,10 +47,10 @@
 
 ### Scheduler
 
-- [ ] **SCHED-01**: Pipeline runs automatically 2x/day per channel at configurable times
-- [ ] **SCHED-02**: Each run: pull from backlog → generate video → upload → log result
-- [ ] **SCHED-03**: Backlog refill (scraping) runs on a separate cadence (e.g. daily or every 12h)
-- [ ] **SCHED-04**: Scheduler uses cron or APScheduler — no external infrastructure required
+- [x] **SCHED-01**: Pipeline runs automatically 2x/day per channel at configurable times
+- [x] **SCHED-02**: Each run: pull from backlog → generate video → upload → log result
+- [x] **SCHED-03**: Backlog refill (scraping) runs on a separate cadence (e.g. daily or every 12h)
+- [x] **SCHED-04**: Scheduler uses cron or APScheduler — no external infrastructure required
 - [x] **SCHED-05**: Each channel's schedule is independently configurable
 
 ### Multi-Channel Orchestration
@@ -117,10 +117,10 @@
 | UPLOAD-03 | Phase 4 | Pending |
 | UPLOAD-04 | Phase 4 | Pending |
 | UPLOAD-05 | Phase 4 | Pending |
-| SCHED-01 | Phase 4 | Pending |
-| SCHED-02 | Phase 4 | Pending |
-| SCHED-03 | Phase 4 | Pending |
-| SCHED-04 | Phase 4 | Pending |
+| SCHED-01 | Phase 4 | Complete |
+| SCHED-02 | Phase 4 | Complete |
+| SCHED-03 | Phase 4 | Complete |
+| SCHED-04 | Phase 4 | Complete |
 | SCHED-05 | Phase 4 | Complete |
 | MULTI-02 | Phase 4 | Complete |
 
