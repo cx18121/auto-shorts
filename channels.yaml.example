@@ -20,6 +20,12 @@ hypothetical-scenarios:
   youtube_client_id: ""
   youtube_client_secret: ""
   instagram_access_token: ""
+  enabled: true
+  hashtags:
+    - shorts
+    - storytime
+    - hypothetical
+  instagram_user_id: ""  # numeric IG Business account ID from setup-instagram
   quality:
     min_upvotes: 1000
     min_words: 400
@@ -44,6 +50,12 @@ relationships:
   youtube_client_id: ""
   youtube_client_secret: ""
   instagram_access_token: ""
+  enabled: true
+  hashtags:
+    - shorts
+    - storytime
+    - relationships
+  instagram_user_id: ""  # numeric IG Business account ID from setup-instagram
   quality:
     min_upvotes: 1000
     min_words: 400
@@ -70,6 +82,12 @@ finance-hustle:
   youtube_client_id: ""
   youtube_client_secret: ""
   instagram_access_token: ""
+  enabled: true
+  hashtags:
+    - shorts
+    - finance
+    - hustle
+  instagram_user_id: ""  # numeric IG Business account ID from setup-instagram
   quality:
     min_upvotes: 500
     min_words: 200

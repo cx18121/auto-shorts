@@ -100,6 +100,64 @@ class TestChannelConfig(unittest.TestCase):
         # Restore for tearDown
         self.channels_yaml.write_text(EXAMPLE_YAML)
 
+    def test_enabled_defaults_to_true_when_missing(self):
+        """ChannelConfig.enabled defaults to True when not present in YAML."""
+        import importlib
+        import yaml
+        # Build a minimal YAML without 'enabled' key
+        minimal_yaml = (
+            "hypothetical-scenarios:\n"
+            "  name: Test\n"
+            "  format: storytelling\n"
+            "  voice_id: v1\n"
+            "  subreddits:\n"
+            "    - AskReddit\n"
+            "  twitter_accounts: []\n"
+        )
+        self.channels_yaml.write_text(minimal_yaml)
+        import config as cfg_module
+        importlib.reload(cfg_module)
+        cfg = cfg_module.CHANNELS["hypothetical-scenarios"]
+        self.assertTrue(cfg.enabled)
+        # Restore original
+        self.channels_yaml.write_text(EXAMPLE_YAML)
+        importlib.reload(cfg_module)
+
+    def test_hashtags_defaults_to_empty_list_when_missing(self):
+        """ChannelConfig.hashtags defaults to [] when not present in YAML."""
+        import importlib
+        # Build a minimal YAML without 'hashtags' key
+        minimal_yaml = (
+            "hypothetical-scenarios:\n"
+            "  name: Test\n"
+            "  format: storytelling\n"
+            "  voice_id: v1\n"
+            "  subreddits:\n"
+            "    - AskReddit\n"
+            "  twitter_accounts: []\n"
+        )
+        self.channels_yaml.write_text(minimal_yaml)
+        import config as cfg_module
+        importlib.reload(cfg_module)
+        cfg = cfg_module.CHANNELS["hypothetical-scenarios"]
+        self.assertEqual(cfg.hashtags, [])
+        # Restore original
+        self.channels_yaml.write_text(EXAMPLE_YAML)
+        importlib.reload(cfg_module)
+
+    def test_new_fields_loaded_from_yaml(self):
+        """enabled, hashtags, and instagram_user_id are loaded correctly from YAML."""
+        import importlib
+        cfg = self.config.CHANNELS["hypothetical-scenarios"]
+        # From channels.yaml.example
+        self.assertTrue(cfg.enabled)
+        self.assertIsInstance(cfg.hashtags, list)
+        self.assertGreater(len(cfg.hashtags), 0)
+        self.assertIn("shorts", cfg.hashtags)
+        self.assertIsInstance(cfg.instagram_user_id, str)
+        # Default is empty string
+        self.assertEqual(cfg.instagram_user_id, "")
+
 
 if __name__ == "__main__":
     loader = unittest.TestLoader()

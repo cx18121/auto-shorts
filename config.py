@@ -91,6 +91,9 @@ class ChannelConfig:
     youtube_client_id: str = ""
     youtube_client_secret: str = ""
     instagram_access_token: str = ""
+    enabled: bool = True
+    hashtags: list = field(default_factory=list)
+    instagram_user_id: str = ""
     quality: dict = field(default_factory=dict)
     style_profile: str = ""
 
