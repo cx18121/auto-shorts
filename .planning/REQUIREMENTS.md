@@ -7,17 +7,17 @@
 
 ### Reddit Scraping
 
-- [ ] **REDDIT-01**: Pipeline can scrape top posts from configured subreddits using PRAW or Reddit JSON API
+- [x] **REDDIT-01**: Pipeline can scrape top posts from configured subreddits using PRAW or Reddit JSON API
 - [ ] **REDDIT-02**: Scraped posts are scored by engagement (upvotes, ratio, comments) and filtered by minimum quality thresholds
-- [ ] **REDDIT-03**: Scraped posts are stored in the SQLite backlog with metadata (subreddit, score, length, scraped_at)
-- [ ] **REDDIT-04**: Scraper respects Reddit rate limits and handles failures gracefully
+- [x] **REDDIT-03**: Scraped posts are stored in the SQLite backlog with metadata (subreddit, score, length, scraped_at)
+- [x] **REDDIT-04**: Scraper respects Reddit rate limits and handles failures gracefully
 
 ### Content Backlog
 
-- [ ] **BACKLOG-01**: SQLite DB maintains separate backlog queues for stories (per niche) and tweets (per niche)
-- [ ] **BACKLOG-02**: Backlog items have status: pending → approved → used
-- [ ] **BACKLOG-03**: Scheduler only pulls from approved backlog items — scraping and posting are fully decoupled
-- [ ] **BACKLOG-04**: CLI command to review and approve/reject pending backlog items
+- [x] **BACKLOG-01**: SQLite DB maintains separate backlog queues for stories (per niche) and tweets (per niche)
+- [x] **BACKLOG-02**: Backlog items have status: pending → approved → used
+- [x] **BACKLOG-03**: Scheduler only pulls from approved backlog items — scraping and posting are fully decoupled
+- [x] **BACKLOG-04**: CLI command to review and approve/reject pending backlog items
 
 ### Niche Configuration
 
@@ -33,9 +33,9 @@
 
 ### Quality Scoring
 
-- [ ] **QUALITY-01**: Stories are scored on: length fit (30-90s when narrated), engagement metrics, content appropriateness
-- [ ] **QUALITY-02**: Tweets are scored on: like count, retweet count, text quality (no links, mentions spam)
-- [ ] **QUALITY-03**: Items below quality threshold are rejected before entering backlog
+- [x] **QUALITY-01**: Stories are scored on: length fit (30-90s when narrated), engagement metrics, content appropriateness
+- [x] **QUALITY-02**: Tweets are scored on: like count, retweet count, text quality (no links, mentions spam)
+- [x] **QUALITY-03**: Items below quality threshold are rejected before entering backlog
 
 ### Upload Automation
 
@@ -98,17 +98,17 @@
 | NICHE-03 | Phase 1 | Complete |
 | MULTI-01 | Phase 1 | Complete |
 | MULTI-03 | Phase 1 | Complete |
-| REDDIT-01 | Phase 2 | Pending |
+| REDDIT-01 | Phase 2 | Complete |
 | REDDIT-02 | Phase 2 | Pending |
-| REDDIT-03 | Phase 2 | Pending |
-| REDDIT-04 | Phase 2 | Pending |
-| BACKLOG-01 | Phase 2 | Pending |
-| BACKLOG-02 | Phase 2 | Pending |
-| BACKLOG-03 | Phase 2 | Pending |
-| BACKLOG-04 | Phase 2 | Pending |
-| QUALITY-01 | Phase 2 | Pending |
-| QUALITY-02 | Phase 2 | Pending |
-| QUALITY-03 | Phase 2 | Pending |
+| REDDIT-03 | Phase 2 | Complete |
+| REDDIT-04 | Phase 2 | Complete |
+| BACKLOG-01 | Phase 2 | Complete |
+| BACKLOG-02 | Phase 2 | Complete |
+| BACKLOG-03 | Phase 2 | Complete |
+| BACKLOG-04 | Phase 2 | Complete |
+| QUALITY-01 | Phase 2 | Complete |
+| QUALITY-02 | Phase 2 | Complete |
+| QUALITY-03 | Phase 2 | Complete |
 | GEN-01 | Phase 3 | Pending |
 | GEN-02 | Phase 3 | Pending |
 | GEN-03 | Phase 3 | Pending |
