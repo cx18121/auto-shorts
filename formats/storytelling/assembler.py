@@ -292,16 +292,19 @@ def _build_split_ffmpeg_cmd(
     Gameplay fills the entire canvas; the Reddit post floats over the top ~960px.
     """
     adjusted_duration = duration / AUDIO_SPEED
-    scroll_y = f"max(0,(in_h-{_POST_H}))*t/{adjusted_duration}"
+    # Scroll from top to bottom; if image is shorter than _POST_H, no scroll needed
+    scroll_y = f"max(0,(in_h-min(in_h\\,{_POST_H})))*t/{adjusted_duration}"
 
     # Build filter_complex chain
+    # Use min(in_h, _POST_H) for crop height so short images don't cause errors
+    crop_h = f"min(in_h\\,{_POST_H})"
     fc_parts = [
         # Gameplay: fit within canvas (zoom out — no aggressive crop)
         f"[0:v]scale={_CANVAS_W}:{_CANVAS_H}:force_original_aspect_ratio=decrease,"
         f"pad={_CANVAS_W}:{_CANVAS_H}:(ow-iw)/2:(oh-ih)/2[bg]",
         # Post image: scale to narrower width, crop a scrolling window
         f"[1:v]scale={_POST_W}:-1,"
-        f"crop={_POST_W}:{_POST_H}:0:'{scroll_y}'[post]",
+        f"crop={_POST_W}:{crop_h}:0:'{scroll_y}'[post]",
         # Overlay post centered with gameplay border visible around it
         f"[bg][post]overlay={_POST_X}:{_POST_Y}[comp]",
     ]
