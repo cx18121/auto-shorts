@@ -8,7 +8,7 @@
 ### Reddit Scraping
 
 - [x] **REDDIT-01**: Pipeline can scrape top posts from configured subreddits using PRAW or Reddit JSON API
-- [ ] **REDDIT-02**: Scraped posts are scored by engagement (upvotes, ratio, comments) and filtered by minimum quality thresholds
+- [x] **REDDIT-02**: Scraped posts are scored by engagement (upvotes, ratio, comments) and filtered by minimum quality thresholds
 - [x] **REDDIT-03**: Scraped posts are stored in the SQLite backlog with metadata (subreddit, score, length, scraped_at)
 - [x] **REDDIT-04**: Scraper respects Reddit rate limits and handles failures gracefully
 
@@ -99,7 +99,7 @@
 | MULTI-01 | Phase 1 | Complete |
 | MULTI-03 | Phase 1 | Complete |
 | REDDIT-01 | Phase 2 | Complete |
-| REDDIT-02 | Phase 2 | Pending |
+| REDDIT-02 | Phase 2 | Complete |
 | REDDIT-03 | Phase 2 | Complete |
 | REDDIT-04 | Phase 2 | Complete |
 | BACKLOG-01 | Phase 2 | Complete |
