@@ -96,7 +96,11 @@ def main() -> None:
             logger.info("=" * 60)
             logger.info("CHANNEL: %s", slug)
             logger.info("=" * 60)
-            _dispatch_command(args, channel_cfg)
+            try:
+                _dispatch_command(args, channel_cfg)
+            except Exception as e:
+                logger.error("Channel %s failed: %s", slug, e)
+                continue
     else:
         channel_cfg = config.get_channel(args.channel)
         _dispatch_command(args, channel_cfg)
