@@ -76,6 +76,19 @@ def main() -> None:
                        help="Browser cookie string (\"key=val; key=val\") or path to "
                             "a JSON cookies file. If ct0 is present, login is skipped.")
 
+    # --- scrape ---
+    p_scrape = sub.add_parser("scrape", help="Scrape content into the backlog")
+    p_scrape.add_argument("--format", choices=["reddit", "tweets"], required=True,
+                          help="Content source to scrape")
+    p_scrape.add_argument("--window", choices=["24h", "month"], default="24h",
+                          help="Time window: '24h' for daily (default), 'month' for bootstrap fill")
+
+    # --- review ---
+    sub.add_parser("review", help="Review pending backlog items interactively")
+
+    # --- backlog-status ---
+    sub.add_parser("backlog-status", help="Print backlog counts per channel")
+
     args = parser.parse_args()
 
     if args.channel == "all":
@@ -404,6 +417,110 @@ def _pick_background() -> str:
     return str(clips[0])
 
 
+def cmd_scrape(fmt: str, window: str,
+               channel_cfg: "config.ChannelConfig") -> None:
+    """Scrape content into the backlog for one channel."""
+    if fmt == "reddit":
+        from pipeline.reddit_scraper import scrape_and_store_reddit
+        result = scrape_and_store_reddit(channel_cfg, window=window)
+    elif fmt == "tweets":
+        from formats.tweets.scraper import scrape_and_store_tweets
+        result = scrape_and_store_tweets(channel_cfg, window=window)
+    logger.info(
+        "Scrape complete [%s/%s]: scraped=%d passed=%d inserted=%d duplicates=%d",
+        channel_cfg.slug, fmt,
+        result["scraped"], result["passed"], result["inserted"], result["duplicates"],
+    )
+    print(f"  {channel_cfg.slug}/{fmt}: +{result['inserted']} new "
+          f"({result['passed']} passed, {result['scraped']} scraped)")
+
+
+def cmd_review(channel_cfg: "config.ChannelConfig") -> None:
+    """Interactive review of pending backlog items for one channel."""
+    from analysis.db import get_connection
+    from pipeline.backlog import (
+        get_pending_stories, get_pending_tweets,
+        approve_item, reject_item, get_probation_remaining,
+    )
+    conn = get_connection()
+    try:
+        probation_left = get_probation_remaining(conn, channel_cfg.slug)
+        if probation_left > 0:
+            print(f"\n[{channel_cfg.slug}] Auto-approve activates after "
+                  f"{probation_left} more manual review(s).")
+        else:
+            print(f"\n[{channel_cfg.slug}] Auto-approve is ACTIVE.")
+
+        if channel_cfg.format == "tweets":
+            items = get_pending_tweets(conn, channel_cfg.slug)
+            source_label = "Twitter"
+            table = "backlog_tweets"
+            id_key = "tweet_id"
+        else:
+            items = get_pending_stories(conn, channel_cfg.slug)
+            source_label = "Reddit"
+            table = "backlog_stories"
+            id_key = "id"
+
+        if not items:
+            print(f"No pending {source_label} items for [{channel_cfg.slug}].")
+            return
+
+        print(f"\nReviewing {len(items)} pending {source_label} item(s) for [{channel_cfg.slug}]")
+        print("Commands: y=approve  n=reject  s=skip\n")
+
+        for item in items:
+            item_id = item[id_key]
+            if source_label == "Reddit":
+                print(f"--- Reddit | r/{item['subreddit']} ---")
+                print(f"Score: {item['score']:,}  Words: {item['word_count']}")
+                print(f"\n{item['title']}\n\n{item['body'][:500]}{'...' if len(item['body']) > 500 else ''}")
+            else:
+                print(f"--- Twitter | @{item['username']} ---")
+                print(f"Likes: {item['likes']:,}  Retweets: {item['retweets']:,}")
+                print(f"\n{item['tweet_text']}")
+
+            try:
+                choice = input("\nApprove? (y/n/skip): ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                print("\nReview session ended.")
+                break
+
+            if choice == "y":
+                approve_item(conn, table, item_id, channel_cfg.slug)
+                conn.commit()
+                print("  Approved.")
+            elif choice == "n":
+                reject_item(conn, table, item_id, channel_cfg.slug)
+                conn.commit()
+                print("  Rejected.")
+            else:
+                print("  Skipped.")
+    finally:
+        conn.close()
+
+
+def cmd_backlog_status(channel_cfg: "config.ChannelConfig | None" = None) -> None:
+    """Print backlog counts. channel_cfg=None means all channels."""
+    from analysis.db import get_connection
+    from pipeline.backlog import get_status_counts
+    conn = get_connection()
+    try:
+        if channel_cfg is not None:
+            channels_to_show = [channel_cfg.slug]
+        else:
+            channels_to_show = list(config.CHANNELS.keys())
+
+        print(f"\n{'Channel':<30} {'Pending':>8} {'Approved':>9} {'Used':>6} {'Rejected':>9}")
+        print("-" * 66)
+        for slug in channels_to_show:
+            counts = get_status_counts(conn, slug)
+            ch = counts.get(slug, {"pending": 0, "approved": 0, "used": 0, "rejected": 0})
+            print(f"{slug:<30} {ch['pending']:>8} {ch['approved']:>9} {ch['used']:>6} {ch['rejected']:>9}")
+    finally:
+        conn.close()
+
+
 def _dispatch_command(args: argparse.Namespace, channel_cfg: "config.ChannelConfig") -> None:
     """Route the parsed command to the correct handler for a single channel."""
     if args.command == "analyze":
@@ -427,6 +544,12 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg: "config.ChannelConf
             getattr(args, "cookies", None),
             channel_cfg=channel_cfg,
         )
+    elif args.command == "scrape":
+        cmd_scrape(args.format, args.window, channel_cfg)
+    elif args.command == "review":
+        cmd_review(channel_cfg)
+    elif args.command == "backlog-status":
+        cmd_backlog_status(channel_cfg)
 
 
 if __name__ == "__main__":
