@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 02-content-pipeline/02-04-PLAN.md
-last_updated: "2026-03-12T02:07:33.343Z"
+stopped_at: Completed 02-content-pipeline/02-05-PLAN.md
+last_updated: "2026-03-12T02:11:11.005Z"
 last_activity: 2026-03-11 — Roadmap created
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
   percent: 0
 ---
 
@@ -57,6 +57,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 02-content-pipeline P03 | 1min | 1 tasks | 1 files |
 | Phase 02-content-pipeline P02 | 2 | 1 tasks | 1 files |
 | Phase 02-content-pipeline P04 | 4min | 2 tasks | 3 files |
+| Phase 02-content-pipeline P05 | 8min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,8 @@ Recent decisions affecting current work:
 - [Phase 02-content-pipeline]: maybe_auto_approve does NOT call increment_reviewed_count — auto-approved items must not advance the probation counter
 - [Phase 02-content-pipeline]: Reddit scraper placed at pipeline/reddit_scraper.py (not formats/storytelling/scraper.py) — test file was the authoritative contract
 - [Phase 02-content-pipeline]: Lazy imports inside scrape_and_store_reddit() body for config/praw/db — avoids channels.yaml import-time failure, preserves module testability
+- [Phase 02-content-pipeline]: scrape_and_store_tweets accepts _conn parameter for testability — avoids channels.yaml SystemExit caused by analysis.db -> config.py import chain
+- [Phase 02-content-pipeline]: min_likes=1 passed to scrape_top_tweets so quality filtering is fully auditable; raw data retrieved before filtering
 
 ### Pending Todos
 
@@ -95,6 +98,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T02:07:33.223Z
-Stopped at: Completed 02-content-pipeline/02-04-PLAN.md
+Last session: 2026-03-12T02:11:10.899Z
+Stopped at: Completed 02-content-pipeline/02-05-PLAN.md
 Resume file: None
