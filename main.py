@@ -4,6 +4,7 @@ main.py — Automated Shorts Pipeline CLI.
 Commands:
     analyze  --channels URL [URL ...]  [--visual]
     generate --format storytelling|tweets  --profile PATH  --count N  [--thread]
+             --from-backlog  (storytelling only: pull approved Reddit posts from backlog)
 """
 
 import argparse
@@ -64,6 +65,8 @@ def main() -> None:
                         help="Use real tweets scraped from X instead of AI-generated ones")
     p_gen.add_argument("--min-likes", type=int, default=500,
                         help="Minimum likes when scraping (default: 500)")
+    p_gen.add_argument("--from-backlog", action="store_true",
+                        help="Pull approved stories from backlog and adapt via Claude (storytelling only)")
 
     # --- setup-twitter ---
     p_tw = sub.add_parser("setup-twitter", help="Add a Twitter/X account for scraping")
@@ -173,7 +176,8 @@ def cmd_setup_twitter(username: str, password: str, email: str,
 
 def cmd_generate(fmt: str, profile_path: str | None, count: int, thread: bool,
                  scrape: bool = False, min_likes: int = 500,
-                 channel_cfg: "config.ChannelConfig | None" = None) -> None:
+                 channel_cfg: "config.ChannelConfig | None" = None,
+                 from_backlog: bool = False) -> None:
     profile = None
     if profile_path:
         if not Path(profile_path).exists():
@@ -182,13 +186,18 @@ def cmd_generate(fmt: str, profile_path: str | None, count: int, thread: bool,
         profile = json.loads(Path(profile_path).read_text())
         logger.info("Generating %d %s video(s) from profile: %s",
                     count, fmt, Path(profile_path).name)
+    elif from_backlog:
+        logger.info("Generating %d %s video(s) from backlog", count, fmt)
     else:
         logger.info("Generating %d %s video(s) (scrape mode)", count, fmt)
 
     produced: list[str] = []
 
     if fmt == "storytelling":
-        produced = _generate_storytelling(count, profile, profile_path)
+        if from_backlog:
+            produced = _generate_storytelling_from_backlog(count, channel_cfg)
+        else:
+            produced = _generate_storytelling(count, profile, profile_path)
     elif fmt == "tweets":
         if scrape:
             produced = _scrape_tweets(count, min_likes)
@@ -232,6 +241,88 @@ def _generate_storytelling(
             logger.info("Story %d/%d done → %s", i + 1, count, video_path)
 
     return produced
+
+
+def _generate_storytelling_from_backlog(
+    count: int,
+    channel_cfg: "config.ChannelConfig | None",
+) -> list[str]:
+    """Pull approved Reddit posts from the backlog and produce story videos.
+
+    Adapts each post via adapt_reddit_post(), runs TTS + overlay + assembler,
+    and marks each used story with mark_story_used() after successful video production.
+
+    Args:
+        count:       Maximum number of videos to produce.
+        channel_cfg: Channel configuration; slug and optional style_profile path used.
+
+    Returns:
+        List of video file paths produced.
+    """
+    from analysis.db import get_connection
+    from pipeline.backlog import get_approved_stories, mark_story_used
+    from formats.storytelling.generator import adapt_reddit_post
+    from formats.storytelling.quality import check_quality
+
+    slug = channel_cfg.slug if channel_cfg else ""
+
+    # Load style profile if configured
+    profile: dict | None = None
+    if channel_cfg and channel_cfg.style_profile:
+        profile_path = Path(channel_cfg.style_profile)
+        if profile_path.exists():
+            try:
+                profile = json.loads(profile_path.read_text())
+                logger.info("Loaded style profile: %s", profile_path)
+            except Exception as e:
+                logger.warning("Failed to load style profile %s: %s — continuing without profile", profile_path, e)
+        else:
+            logger.warning("style_profile path not found: %s — continuing without profile", profile_path)
+
+    conn = get_connection()
+    try:
+        rows = get_approved_stories(conn, slug)
+        if not rows:
+            logger.warning("No approved stories in backlog for [%s]", slug)
+            return []
+
+        logger.info("Found %d approved story/stories in backlog for [%s]", len(rows), slug)
+        background = _pick_background()
+        produced: list[str] = []
+
+        for i, row in enumerate(rows):
+            if len(produced) >= count:
+                break
+
+            logger.info("-" * 50)
+            logger.info("BACKLOG STORY %d/%d", len(produced) + 1, count)
+
+            post = {
+                "title": row["title"],
+                "body": row["body"],
+                "subreddit": row["subreddit"],
+                "score": row["score"],
+            }
+
+            story = _generate_with_quality(
+                generate_fn=lambda p=post: adapt_reddit_post(p, slug, profile),
+                quality_fn=lambda s: check_quality(s, profile) if profile else {"passed": True, "overall": 10.0},
+                label="story-from-backlog",
+            )
+            if story is None:
+                logger.error("Backlog story %d rejected after all retries, skipping", i + 1)
+                continue
+
+            video_path = _run_storytelling_pipeline(story["story_text"], background)
+            if video_path:
+                mark_story_used(conn, row["id"])
+                conn.commit()
+                produced.append(video_path)
+                logger.info("Backlog story %d done → %s", len(produced), video_path)
+
+        return produced
+    finally:
+        conn.close()
 
 
 def _run_storytelling_pipeline(story_text: str, background: str) -> str | None:
@@ -531,8 +622,9 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg: "config.ChannelConf
         cmd_analyze(args.channels, args.visual, args.max_videos, channel_cfg=channel_cfg)
     elif args.command == "generate":
         scrape = getattr(args, "scrape", False)
-        if not scrape and not args.profile:
-            logger.error("--profile is required unless --scrape is set")
+        from_backlog = getattr(args, "from_backlog", False)
+        if not scrape and not from_backlog and not args.profile:
+            logger.error("--profile is required unless --scrape or --from-backlog is set")
             sys.exit(1)
         cmd_generate(
             args.format, args.profile, args.count,
@@ -540,6 +632,7 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg: "config.ChannelConf
             scrape=scrape,
             min_likes=getattr(args, "min_likes", 500),
             channel_cfg=channel_cfg,
+            from_backlog=from_backlog,
         )
     elif args.command == "setup-twitter":
         cmd_setup_twitter(
