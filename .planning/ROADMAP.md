@@ -63,7 +63,11 @@ Plans:
   1. Given a Reddit post title and body, Claude Haiku produces a script with no markdown, natural speech phrasing, and an estimated duration between 30 and 90 seconds
   2. Generated scripts use the niche tone (hypothetical scenarios sound contemplative, relationships sound empathetic, finance sounds punchy)
   3. If a style profile exists for the channel, the generated script reflects its hook structure and narrative patterns
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — adapt_reddit_post() + _build_reddit_prompt() + _NICHE_TONES + _validate() enhancement + style_profile on ChannelConfig + tests
+- [ ] 03-02-PLAN.md — CLI --from-backlog flag + _generate_storytelling_from_backlog() pipeline wiring in main.py
 
 ### Phase 4: Upload + Scheduler
 **Goal**: The pipeline wakes up twice a day per channel, pulls the best available content from the backlog, generates a video, uploads it to YouTube Shorts and Instagram Reels, and logs the result — zero human intervention required
@@ -87,5 +91,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Niche Config + Multi-Channel Foundation | 3/3 | Complete   | 2026-03-12 |
 | 2. Content Pipeline | 6/6 | Complete   | 2026-03-12 |
-| 3. AI Story Generation | 0/TBD | Not started | - |
+| 3. AI Story Generation | 0/2 | Not started | - |
 | 4. Upload + Scheduler | 0/TBD | Not started | - |
