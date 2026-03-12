@@ -72,6 +72,8 @@ def main() -> None:
                         help="Interactively choose which backlog item to use (implies --from-backlog)")
     p_gen.add_argument("--no-audio", action="store_true",
                         help="Skip TTS API call — use silent audio for testing video layout")
+    p_gen.add_argument("--keep-backlog", action="store_true",
+                        help="Don't mark backlog items as used after video production (for testing)")
 
     # --- setup-twitter ---
     p_tw = sub.add_parser("setup-twitter", help="Add a Twitter/X account for scraping")
@@ -226,7 +228,7 @@ def cmd_generate(fmt: str, profile_path: str | None, count: int, thread: bool,
                  scrape: bool = False, min_likes: int = 500,
                  channel_cfg: "config.ChannelConfig | None" = None,
                  from_backlog: bool = False, pick: bool = False,
-                 no_audio: bool = False) -> None:
+                 no_audio: bool = False, keep_backlog: bool = False) -> None:
     profile = None
     if profile_path:
         if not Path(profile_path).exists():
@@ -246,6 +248,7 @@ def cmd_generate(fmt: str, profile_path: str | None, count: int, thread: bool,
         if from_backlog:
             produced = _generate_storytelling_from_backlog(
                 count, channel_cfg, pick=pick, no_audio=no_audio,
+                keep_backlog=keep_backlog,
             )
         else:
             produced = _generate_storytelling(count, profile, profile_path, no_audio=no_audio)
@@ -330,6 +333,7 @@ def _generate_storytelling_from_backlog(
     channel_cfg: "config.ChannelConfig | None",
     pick: bool = False,
     no_audio: bool = False,
+    keep_backlog: bool = False,
 ) -> list[str]:
     """Pull approved Reddit posts from the backlog and produce story videos.
 
@@ -414,8 +418,11 @@ def _generate_storytelling_from_backlog(
                 no_audio=no_audio,
             )
             if video_path:
-                mark_story_used(conn, row["id"])
-                conn.commit()
+                if not keep_backlog:
+                    mark_story_used(conn, row["id"])
+                    conn.commit()
+                else:
+                    logger.info("--keep-backlog: skipping mark_story_used for row %d", row["id"])
                 produced.append(video_path)
                 logger.info("Backlog story %d done → %s", len(produced), video_path)
 
@@ -1223,6 +1230,7 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg: "config.ChannelConf
             from_backlog=from_backlog,
             pick=pick,
             no_audio=getattr(args, "no_audio", False),
+            keep_backlog=getattr(args, "keep_backlog", False),
         )
     elif args.command == "setup-twitter":
         cmd_setup_twitter(
