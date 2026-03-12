@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Niche Config + Multi-Channel Foundation** - Define per-channel config, isolate backlogs and credentials, wire multi-channel CLI targeting (completed 2026-03-12)
 - [x] **Phase 2: Content Pipeline** - Reddit scraper, backlog DB, quality scoring — content flows in and waits to be consumed (completed 2026-03-12)
 - [x] **Phase 3: AI Story Generation** - Claude generates scripts from Reddit posts when backlog is thin; guided by style profiles (completed 2026-03-12)
-- [ ] **Phase 4: Upload + Scheduler** - Automated twice-daily posting to YouTube Shorts and Instagram Reels across all three channels
+- [x] **Phase 4: Upload + Scheduler** - Automated twice-daily posting to YouTube Shorts and Instagram Reels across all three channels (completed 2026-03-12)
 
 ## Phase Details
 
@@ -97,4 +97,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Niche Config + Multi-Channel Foundation | 3/3 | Complete   | 2026-03-12 |
 | 2. Content Pipeline | 6/6 | Complete   | 2026-03-12 |
 | 3. AI Story Generation | 2/2 | Complete   | 2026-03-12 |
-| 4. Upload + Scheduler | 1/3 | In Progress|  |
+| 4. Upload + Scheduler | 3/3 | Complete   | 2026-03-12 |

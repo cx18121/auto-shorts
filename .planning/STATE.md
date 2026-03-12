@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 04-upload-scheduler 04-02-PLAN.md
-last_updated: "2026-03-12T19:27:14.828Z"
+stopped_at: Completed 04-upload-scheduler 04-03-PLAN.md
+last_updated: "2026-03-12T20:45:30.819Z"
 last_activity: 2026-03-11 — Roadmap created
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 14
   percent: 0
 ---
 
@@ -62,6 +62,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 03-ai-story-generation P01 | 5 | 2 tasks | 4 files |
 | Phase 03-ai-story-generation P02 | 5 | 1 tasks | 1 files |
 | Phase 04-upload-scheduler P02 | 7min | 2 tasks | 5 files |
+| Phase 04-upload-scheduler P03 | 25 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -99,6 +100,10 @@ Recent decisions affecting current work:
 - [Phase 04-upload-scheduler]: pipeline/upload.py created to house setup_youtube_oauth() — plan referenced it but file did not exist (Rule 3 auto-fix)
 - [Phase 04-upload-scheduler]: Token paths established: data/channels/{slug}/youtube_token.json and instagram_token.json — consistent with CONTEXT.md decision
 - [Phase 04-upload-scheduler]: setup-instagram uses channel_cfg.instagram_access_token as app_secret placeholder; prompts user if empty — avoids adding dedicated field
+- [Phase 04-upload-scheduler]: cmd_run_cycle uses lazy imports for all pipeline modules to avoid channels.yaml SystemExit at import time
+- [Phase 04-upload-scheduler]: YouTube and Instagram uploads are independent: YouTube exception is caught and logged, Instagram attempt always follows
+- [Phase 04-upload-scheduler]: INSTAGRAM_PUBLIC_BASE_URL must be set in environment for Instagram uploads — no local file serving fallback
+- [Phase 04-upload-scheduler]: mark_used called after both upload attempts complete — item consumed regardless of upload outcome
 
 ### Pending Todos
 
@@ -112,6 +117,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T19:27:14.805Z
-Stopped at: Completed 04-upload-scheduler 04-02-PLAN.md
+Last session: 2026-03-12T20:45:30.712Z
+Stopped at: Completed 04-upload-scheduler 04-03-PLAN.md
 Resume file: None
