@@ -13,7 +13,7 @@ The existing codebase already assembles videos (storytelling and tweet formats) 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Niche Config + Multi-Channel Foundation** - Define per-channel config, isolate backlogs and credentials, wire multi-channel CLI targeting (completed 2026-03-12)
-- [ ] **Phase 2: Content Pipeline** - Reddit scraper, backlog DB, quality scoring — content flows in and waits to be consumed
+- [x] **Phase 2: Content Pipeline** - Reddit scraper, backlog DB, quality scoring — content flows in and waits to be consumed (completed 2026-03-12)
 - [ ] **Phase 3: AI Story Generation** - Claude generates scripts from Reddit posts when backlog is thin; guided by style profiles
 - [ ] **Phase 4: Upload + Scheduler** - Automated twice-daily posting to YouTube Shorts and Instagram Reels across all three channels
 
@@ -86,6 +86,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Niche Config + Multi-Channel Foundation | 3/3 | Complete   | 2026-03-12 |
-| 2. Content Pipeline | 3/6 | In Progress|  |
+| 2. Content Pipeline | 6/6 | Complete   | 2026-03-12 |
 | 3. AI Story Generation | 0/TBD | Not started | - |
 | 4. Upload + Scheduler | 0/TBD | Not started | - |

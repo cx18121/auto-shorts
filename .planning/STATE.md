@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 02-content-pipeline/02-05-PLAN.md
-last_updated: "2026-03-12T02:11:11.005Z"
+stopped_at: Completed 02-content-pipeline/02-06-PLAN.md
+last_updated: "2026-03-12T02:16:29.380Z"
 last_activity: 2026-03-11 — Roadmap created
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 9
   percent: 0
 ---
 
@@ -58,6 +58,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 02-content-pipeline P02 | 2 | 1 tasks | 1 files |
 | Phase 02-content-pipeline P04 | 4min | 2 tasks | 3 files |
 | Phase 02-content-pipeline P05 | 8min | 2 tasks | 2 files |
+| Phase 02-content-pipeline P06 | 3min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,8 @@ Recent decisions affecting current work:
 - [Phase 02-content-pipeline]: Lazy imports inside scrape_and_store_reddit() body for config/praw/db — avoids channels.yaml import-time failure, preserves module testability
 - [Phase 02-content-pipeline]: scrape_and_store_tweets accepts _conn parameter for testability — avoids channels.yaml SystemExit caused by analysis.db -> config.py import chain
 - [Phase 02-content-pipeline]: min_likes=1 passed to scrape_top_tweets so quality filtering is fully auditable; raw data retrieved before filtering
+- [Phase 02-content-pipeline]: Reddit scraper import uses pipeline.reddit_scraper (not formats/storytelling/scraper) — Plan 04 placed it there as authoritative per test contract
+- [Phase 02-content-pipeline]: cmd_review branches on channel_cfg.format to select backlog table and pending-item query — one function handles both formats
 
 ### Pending Todos
 
@@ -98,6 +101,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T02:11:10.899Z
-Stopped at: Completed 02-content-pipeline/02-05-PLAN.md
+Last session: 2026-03-12T02:16:29.320Z
+Stopped at: Completed 02-content-pipeline/02-06-PLAN.md
 Resume file: None
