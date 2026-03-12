@@ -43,9 +43,17 @@ Plans:
   1. Running the scrape job populates the backlog DB with scored Reddit posts from the correct subreddits for each niche
   2. Items below quality thresholds (engagement, length, content) are rejected before entering the backlog — never appear as approved items
   3. Backlog items flow through pending → approved → used states; the scheduler only sees approved items
-  4. Running `python main.py review --channel relationships` shows pending items and accepts approve/reject input
+  4. Running `python main.py --channel relationships review` shows pending items and accepts approve/reject input
   5. A scrape job failing for one niche logs the error and continues — other niches are unaffected
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — DB schema (backlog_stories, backlog_tweets, niche_state) + ChannelConfig quality field + channels.yaml.example quality sections + RED test stubs
+- [ ] 02-02-PLAN.md — pipeline/backlog.py CRUD + status transitions + probation logic
+- [ ] 02-03-PLAN.md — pipeline/quality_filter.py threshold-based story and tweet scoring
+- [ ] 02-04-PLAN.md — formats/storytelling/scraper.py PRAW Reddit scraper wired to quality filter + backlog
+- [ ] 02-05-PLAN.md — formats/tweets/scraper.py browser leak fix + scrape_and_store_tweets()
+- [ ] 02-06-PLAN.md — main.py scrape/review/backlog-status subcommands + human-verify checkpoint
 
 ### Phase 3: AI Story Generation
 **Goal**: Claude can generate a narration-ready story script from a Reddit post title and body, matching the niche tone and style profile, so the backlog can be topped up when real posts are scarce
@@ -78,6 +86,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Niche Config + Multi-Channel Foundation | 3/3 | Complete   | 2026-03-12 |
-| 2. Content Pipeline | 0/TBD | Not started | - |
+| 2. Content Pipeline | 0/6 | Not started | - |
 | 3. AI Story Generation | 0/TBD | Not started | - |
 | 4. Upload + Scheduler | 0/TBD | Not started | - |
