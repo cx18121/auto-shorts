@@ -56,7 +56,7 @@
 ### Multi-Channel Orchestration
 
 - [x] **MULTI-01**: Each niche channel operates with its own isolated backlog, config, and upload credentials
-- [ ] **MULTI-02**: A single scheduler process manages all channels
+- [x] **MULTI-02**: A single scheduler process manages all channels
 - [x] **MULTI-03**: CLI can target a specific channel or run all channels
 
 ## v2 Requirements
@@ -122,7 +122,7 @@
 | SCHED-03 | Phase 4 | Pending |
 | SCHED-04 | Phase 4 | Pending |
 | SCHED-05 | Phase 4 | Pending |
-| MULTI-02 | Phase 4 | Pending |
+| MULTI-02 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 30 total
