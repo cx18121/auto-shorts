@@ -20,7 +20,12 @@ from unittest.mock import MagicMock, patch, call, mock_open
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-# RED: ImportError expected until pipeline/upload.py is implemented
+# Mock config module before importing upload to avoid channels.yaml SystemExit
+from unittest.mock import MagicMock
+_mock_config = MagicMock()
+_mock_config.ANTHROPIC_API_KEY = "test-api-key"
+sys.modules.setdefault("config", _mock_config)
+
 from pipeline.upload import (  # noqa: E402
     init_upload_table,
     log_upload,
@@ -223,9 +228,10 @@ class TestYouTubeUpload(unittest.TestCase):
             "expiry": expiry,
         })
 
+    @patch("pipeline.upload.MediaFileUpload")
     @patch("pipeline.upload.build")
     @patch("pipeline.upload.Credentials")
-    def test_calls_videos_insert(self, mock_creds_cls, mock_build):
+    def test_calls_videos_insert(self, mock_creds_cls, mock_build, mock_media):
         mock_creds = MagicMock()
         mock_creds.expired = False
         mock_creds.refresh_token = "1//test_refresh"
@@ -251,9 +257,10 @@ class TestYouTubeUpload(unittest.TestCase):
         self.assertEqual(result, "yt-video-123")
         mock_youtube.videos.return_value.insert.assert_called_once()
 
+    @patch("pipeline.upload.MediaFileUpload")
     @patch("pipeline.upload.build")
     @patch("pipeline.upload.Credentials")
-    def test_snippet_has_correct_category(self, mock_creds_cls, mock_build):
+    def test_snippet_has_correct_category(self, mock_creds_cls, mock_build, mock_media):
         mock_creds = MagicMock()
         mock_creds.expired = False
         mock_creds_cls.from_authorized_user_file.return_value = mock_creds
@@ -282,10 +289,11 @@ class TestYouTubeUpload(unittest.TestCase):
         self.assertEqual(call_kwargs["body"]["snippet"]["categoryId"], "22")
         self.assertEqual(call_kwargs["body"]["status"]["privacyStatus"], "public")
 
+    @patch("pipeline.upload.MediaFileUpload")
     @patch("pipeline.upload.build")
     @patch("pipeline.upload.Credentials")
     @patch("pipeline.upload.Request")
-    def test_refreshes_expired_credentials(self, mock_request_cls, mock_creds_cls, mock_build):
+    def test_refreshes_expired_credentials(self, mock_request_cls, mock_creds_cls, mock_build, mock_media):
         mock_creds = MagicMock()
         mock_creds.expired = True
         mock_creds.refresh_token = "1//test_refresh"
