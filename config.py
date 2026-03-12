@@ -23,6 +23,12 @@ ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "")
 YOUTUBE_API_KEY: str = os.getenv("YOUTUBE_API_KEY", "")
 
+# Reddit API credentials (PRAW read-only access)
+# Create a script app at https://www.reddit.com/prefs/apps to obtain these.
+REDDIT_CLIENT_ID: str = os.getenv("REDDIT_CLIENT_ID", "")
+REDDIT_CLIENT_SECRET: str = os.getenv("REDDIT_CLIENT_SECRET", "")
+REDDIT_USER_AGENT: str = os.getenv("REDDIT_USER_AGENT", "auto-shorts/1.0")
+
 # Optional: path to a Netscape-format YouTube cookies file (exported from browser)
 # This bypasses IP bans on transcript fetching. Takes priority over proxy.
 # Export from Chrome using the "Get cookies.txt LOCALLY" extension.
