@@ -10,6 +10,7 @@ Commands:
 import argparse
 import json
 import logging
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -69,6 +70,8 @@ def main() -> None:
                         help="Pull approved stories from backlog and adapt via Claude (storytelling only)")
     p_gen.add_argument("--pick", action="store_true",
                         help="Interactively choose which backlog item to use (implies --from-backlog)")
+    p_gen.add_argument("--no-audio", action="store_true",
+                        help="Skip TTS API call — use silent audio for testing video layout")
 
     # --- setup-twitter ---
     p_tw = sub.add_parser("setup-twitter", help="Add a Twitter/X account for scraping")
@@ -222,7 +225,8 @@ def cmd_setup_twitter(username: str, password: str, email: str,
 def cmd_generate(fmt: str, profile_path: str | None, count: int, thread: bool,
                  scrape: bool = False, min_likes: int = 500,
                  channel_cfg: "config.ChannelConfig | None" = None,
-                 from_backlog: bool = False, pick: bool = False) -> None:
+                 from_backlog: bool = False, pick: bool = False,
+                 no_audio: bool = False) -> None:
     profile = None
     if profile_path:
         if not Path(profile_path).exists():
@@ -240,9 +244,11 @@ def cmd_generate(fmt: str, profile_path: str | None, count: int, thread: bool,
 
     if fmt == "storytelling":
         if from_backlog:
-            produced = _generate_storytelling_from_backlog(count, channel_cfg, pick=pick)
+            produced = _generate_storytelling_from_backlog(
+                count, channel_cfg, pick=pick, no_audio=no_audio,
+            )
         else:
-            produced = _generate_storytelling(count, profile, profile_path)
+            produced = _generate_storytelling(count, profile, profile_path, no_audio=no_audio)
     elif fmt == "tweets":
         if scrape:
             produced = _scrape_tweets(count, min_likes)
@@ -259,7 +265,7 @@ def cmd_generate(fmt: str, profile_path: str | None, count: int, thread: bool,
 # ---------------------------------------------------------------------------
 
 def _generate_storytelling(
-    count: int, profile: dict, profile_path: str
+    count: int, profile: dict, profile_path: str, no_audio: bool = False,
 ) -> list[str]:
     from formats.storytelling.generator import generate_story
     from formats.storytelling.quality import check_quality
@@ -280,7 +286,9 @@ def _generate_storytelling(
             logger.error("Story %d/%d rejected after all retries, skipping", i + 1, count)
             continue
 
-        video_path = _run_storytelling_pipeline(story["story_text"], background)
+        video_path = _run_storytelling_pipeline(
+            story["story_text"], background, no_audio=no_audio,
+        )
         if video_path:
             produced.append(video_path)
             logger.info("Story %d/%d done → %s", i + 1, count, video_path)
@@ -321,6 +329,7 @@ def _generate_storytelling_from_backlog(
     count: int,
     channel_cfg: "config.ChannelConfig | None",
     pick: bool = False,
+    no_audio: bool = False,
 ) -> list[str]:
     """Pull approved Reddit posts from the backlog and produce story videos.
 
@@ -402,6 +411,7 @@ def _generate_storytelling_from_backlog(
                     "subreddit": post.get("subreddit", "stories"),
                     "score": post.get("score", 0),
                 },
+                no_audio=no_audio,
             )
             if video_path:
                 mark_story_used(conn, row["id"])
@@ -414,10 +424,40 @@ def _generate_storytelling_from_backlog(
         conn.close()
 
 
+_SILENT_DURATION = 10.0  # seconds of silent audio for --no-audio testing
+
+
+def _generate_silent_audio(output_dir: str) -> dict:
+    """Generate a silent MP3 and dummy timestamps for --no-audio testing."""
+    out = Path(output_dir)
+    audio_path = out / "narration.mp3"
+    timestamps_path = out / "timestamps.json"
+
+    subprocess.run(
+        ["ffmpeg", "-y", "-f", "lavfi", "-i",
+         f"anullsrc=r=44100:cl=mono", "-t", str(_SILENT_DURATION),
+         "-c:a", "libmp3lame", "-b:a", "128k", str(audio_path)],
+        capture_output=True, check=True,
+    )
+
+    # Dummy timestamps: one word every 2 seconds
+    words = []
+    for i in range(int(_SILENT_DURATION / 2)):
+        words.append({"word": "TEST", "start_ms": i * 2000, "end_ms": i * 2000 + 500})
+    timestamps_path.write_text(json.dumps(words))
+
+    return {
+        "audio_path": str(audio_path),
+        "timestamps_path": str(timestamps_path),
+        "duration_seconds": _SILENT_DURATION,
+    }
+
+
 def _run_storytelling_pipeline(
     story_text: str,
     background: str,
     post_meta: dict | None = None,
+    no_audio: bool = False,
 ) -> str | None:
     """Run TTS + assembly. If post_meta is provided, uses split-screen layout."""
     from formats.storytelling.assembler import assemble_split_video
@@ -429,8 +469,12 @@ def _run_storytelling_pipeline(
     try:
         from formats.storytelling.assembler import AUDIO_SPEED
 
-        logger.info("[1/4] TTS…")
-        tts = generate_tts(story_text, str(workdir))
+        if no_audio:
+            logger.info("[1/4] Generating silent audio (--no-audio)…")
+            tts = _generate_silent_audio(str(workdir))
+        else:
+            logger.info("[1/4] TTS…")
+            tts = generate_tts(story_text, str(workdir))
 
         if post_meta:
             # Split-screen: gameplay background + Reddit post overlay + subtitles
@@ -1178,6 +1222,7 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg: "config.ChannelConf
             channel_cfg=channel_cfg,
             from_backlog=from_backlog,
             pick=pick,
+            no_audio=getattr(args, "no_audio", False),
         )
     elif args.command == "setup-twitter":
         cmd_setup_twitter(

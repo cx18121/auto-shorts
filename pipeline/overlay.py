@@ -158,7 +158,7 @@ ScaledBorderAndShadow: yes
 #   Alignment, MarginL, MarginR, MarginV, Encoding
 #
 # BorderStyle 1 = outline + shadow.
-# Nunito ExtraBold has naturally rounded letterforms → bubbly look.
+# Komika Axis is a bold comic-style font — punchy subtitle look.
 # Outline=4 gives a fat black border that puffs the letters out.
 # Shadow=2 with a coloured BackColour adds a warm offset shadow for depth.
 # Alignment 5 = numpad centre — centres on the 1080×1920 canvas.
@@ -168,7 +168,7 @@ _ASS_STYLES = (
     "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
     "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
     "Alignment, MarginL, MarginR, MarginV, Encoding\n"
-    f"Style: Default,Nunito ExtraBold,120,"
+    f"Style: Default,Komika Axis,120,"
     f"{_COLOUR_WHITE},{_COLOUR_BLACK},{_COLOUR_BLACK},{_COLOUR_SHADOW},"
     f"-1,0,0,0,"        # Bold=-1 (on), no italic/underline/strikeout
     f"100,100,1,0,"     # ScaleX, ScaleY, Spacing=1 (slight letter spacing), Angle

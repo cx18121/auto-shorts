@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 
 _TEMPLATE_PATH = Path(__file__).parent / "reddit_template.html"
 
-# Target width for the top half of a 1080x1920 split-screen
-RENDER_WIDTH = 1080
+# Target width matching assembler _POST_W (narrower than canvas for gameplay border)
+RENDER_WIDTH = 940
 
 
 def render_reddit_post(
@@ -53,21 +53,12 @@ def render_reddit_post(
     # Render HTML to PNG via Playwright
     raw_png = _render_html(filled, out.parent)
 
-    # Scale to target width and ensure minimum height for FFmpeg crop
-    from formats.storytelling.assembler import _POST_H
-
-    img = Image.open(raw_png).convert("RGB")
+    # Scale to target width — no padding, let gameplay show around short posts
+    img = Image.open(raw_png).convert("RGBA")
     w, h = img.size
     if w != RENDER_WIDTH:
         scale = RENDER_WIDTH / w
         img = img.resize((RENDER_WIDTH, int(h * scale)), Image.LANCZOS)
-
-    # Pad with Reddit dark background if shorter than the crop window
-    min_h = _POST_H + 100  # extra padding so scroll has room
-    if img.height < min_h:
-        padded = Image.new("RGB", (RENDER_WIDTH, min_h), "#1a1a1b")
-        padded.paste(img, (0, 0))
-        img = padded
 
     img.save(str(out), "PNG")
     raw_png.unlink(missing_ok=True)

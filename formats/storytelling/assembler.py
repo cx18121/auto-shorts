@@ -208,7 +208,9 @@ def _run_ffmpeg(cmd: list[str]) -> None:
 # Split-screen assembly (gameplay background + Reddit post overlay + subtitles)
 # ---------------------------------------------------------------------------
 
+_POST_W = 940    # Reddit post width (narrower than canvas — gameplay border visible)
 _POST_H = 960    # Reddit post overlay height (upper portion of 1920 canvas)
+_POST_X = 70     # Horizontal offset to center post: (1080 - 940) / 2
 _POST_Y = 40     # Top padding for post overlay
 _CANVAS_W = 1080
 _CANVAS_H = 1920
@@ -294,14 +296,14 @@ def _build_split_ffmpeg_cmd(
 
     # Build filter_complex chain
     fc_parts = [
-        # Gameplay: fill entire 1080x1920 canvas
-        f"[0:v]scale={_CANVAS_W}:{_CANVAS_H}:force_original_aspect_ratio=increase,"
-        f"crop={_CANVAS_W}:{_CANVAS_H}[bg]",
-        # Post image: scale width to canvas, crop a scrolling window
-        f"[1:v]scale={_CANVAS_W}:-1,"
-        f"crop={_CANVAS_W}:{_POST_H}:0:'{scroll_y}'[post]",
-        # Overlay post on top of gameplay
-        f"[bg][post]overlay=0:{_POST_Y}[comp]",
+        # Gameplay: fit within canvas (zoom out — no aggressive crop)
+        f"[0:v]scale={_CANVAS_W}:{_CANVAS_H}:force_original_aspect_ratio=decrease,"
+        f"pad={_CANVAS_W}:{_CANVAS_H}:(ow-iw)/2:(oh-ih)/2[bg]",
+        # Post image: scale to narrower width, crop a scrolling window
+        f"[1:v]scale={_POST_W}:-1,"
+        f"crop={_POST_W}:{_POST_H}:0:'{scroll_y}'[post]",
+        # Overlay post centered with gameplay border visible around it
+        f"[bg][post]overlay={_POST_X}:{_POST_Y}[comp]",
     ]
 
     # Burn subtitles if provided
