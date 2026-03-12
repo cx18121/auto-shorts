@@ -27,9 +27,9 @@
 
 ### AI Content Generation
 
-- [ ] **GEN-01**: Claude (Haiku) can generate storytelling scripts from Reddit post title + body
-- [ ] **GEN-02**: Generated scripts match the niche tone and are formatted for TTS (no markdown, natural speech)
-- [ ] **GEN-03**: Generation is guided by style profile if one exists for the channel
+- [x] **GEN-01**: Claude (Haiku) can generate storytelling scripts from Reddit post title + body
+- [x] **GEN-02**: Generated scripts match the niche tone and are formatted for TTS (no markdown, natural speech)
+- [x] **GEN-03**: Generation is guided by style profile if one exists for the channel
 
 ### Quality Scoring
 
@@ -109,9 +109,9 @@
 | QUALITY-01 | Phase 2 | Complete |
 | QUALITY-02 | Phase 2 | Complete |
 | QUALITY-03 | Phase 2 | Complete |
-| GEN-01 | Phase 3 | Pending |
-| GEN-02 | Phase 3 | Pending |
-| GEN-03 | Phase 3 | Pending |
+| GEN-01 | Phase 3 | Complete |
+| GEN-02 | Phase 3 | Complete |
+| GEN-03 | Phase 3 | Complete |
 | UPLOAD-01 | Phase 4 | Pending |
 | UPLOAD-02 | Phase 4 | Pending |
 | UPLOAD-03 | Phase 4 | Pending |
