@@ -51,7 +51,7 @@
 - [ ] **SCHED-02**: Each run: pull from backlog → generate video → upload → log result
 - [ ] **SCHED-03**: Backlog refill (scraping) runs on a separate cadence (e.g. daily or every 12h)
 - [ ] **SCHED-04**: Scheduler uses cron or APScheduler — no external infrastructure required
-- [ ] **SCHED-05**: Each channel's schedule is independently configurable
+- [x] **SCHED-05**: Each channel's schedule is independently configurable
 
 ### Multi-Channel Orchestration
 
@@ -121,7 +121,7 @@
 | SCHED-02 | Phase 4 | Pending |
 | SCHED-03 | Phase 4 | Pending |
 | SCHED-04 | Phase 4 | Pending |
-| SCHED-05 | Phase 4 | Pending |
+| SCHED-05 | Phase 4 | Complete |
 | MULTI-02 | Phase 4 | Complete |
 
 **Coverage:**

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-12T16:49:41.709Z"
+stopped_at: Completed 04-upload-scheduler 04-02-PLAN.md
+last_updated: "2026-03-12T19:27:14.828Z"
 last_activity: 2026-03-11 — Roadmap created
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 14
+  completed_plans: 12
   percent: 0
 ---
 
@@ -61,6 +61,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 02-content-pipeline P06 | 3min | 1 tasks | 1 files |
 | Phase 03-ai-story-generation P01 | 5 | 2 tasks | 4 files |
 | Phase 03-ai-story-generation P02 | 5 | 1 tasks | 1 files |
+| Phase 04-upload-scheduler P02 | 7min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -95,6 +96,9 @@ Recent decisions affecting current work:
 - [Phase 03-ai-story-generation]: Profile overrides niche defaults entirely when present — _build_reddit_prompt branches on profile presence, no merging
 - [Phase 03-ai-story-generation]: --from-backlog without --profile permitted; style profile loaded from channel_cfg.style_profile when set
 - [Phase 03-ai-story-generation]: Quality check auto-passes when no profile provided — no thresholds to validate against for backlog-to-video path
+- [Phase 04-upload-scheduler]: pipeline/upload.py created to house setup_youtube_oauth() — plan referenced it but file did not exist (Rule 3 auto-fix)
+- [Phase 04-upload-scheduler]: Token paths established: data/channels/{slug}/youtube_token.json and instagram_token.json — consistent with CONTEXT.md decision
+- [Phase 04-upload-scheduler]: setup-instagram uses channel_cfg.instagram_access_token as app_secret placeholder; prompts user if empty — avoids adding dedicated field
 
 ### Pending Todos
 
@@ -108,6 +112,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T16:49:41.535Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-upload-scheduler/04-CONTEXT.md
+Last session: 2026-03-12T19:27:14.805Z
+Stopped at: Completed 04-upload-scheduler 04-02-PLAN.md
+Resume file: None
