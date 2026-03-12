@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 02-content-pipeline/02-02-PLAN.md
-last_updated: "2026-03-12T02:01:02.481Z"
+stopped_at: Completed 02-content-pipeline/02-04-PLAN.md
+last_updated: "2026-03-12T02:07:33.343Z"
 last_activity: 2026-03-11 — Roadmap created
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 9
-  completed_plans: 6
+  completed_plans: 7
   percent: 0
 ---
 
@@ -56,6 +56,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 02-content-pipeline P01 | 6 | 2 tasks | 8 files |
 | Phase 02-content-pipeline P03 | 1min | 1 tasks | 1 files |
 | Phase 02-content-pipeline P02 | 2 | 1 tasks | 1 files |
+| Phase 02-content-pipeline P04 | 4min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,8 @@ Recent decisions affecting current work:
 - [Phase 02-content-pipeline]: Quality filter has no AI scoring — word count + upvotes thresholds are the full criteria per CONTEXT.md
 - [Phase 02-content-pipeline]: Story-specific wrappers (approve_story/reject_story/mark_story_used) added alongside generic approve_item/reject_item/mark_used to match Plan 01 test API
 - [Phase 02-content-pipeline]: maybe_auto_approve does NOT call increment_reviewed_count — auto-approved items must not advance the probation counter
+- [Phase 02-content-pipeline]: Reddit scraper placed at pipeline/reddit_scraper.py (not formats/storytelling/scraper.py) — test file was the authoritative contract
+- [Phase 02-content-pipeline]: Lazy imports inside scrape_and_store_reddit() body for config/praw/db — avoids channels.yaml import-time failure, preserves module testability
 
 ### Pending Todos
 
@@ -92,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T02:01:02.393Z
-Stopped at: Completed 02-content-pipeline/02-02-PLAN.md
+Last session: 2026-03-12T02:07:33.223Z
+Stopped at: Completed 02-content-pipeline/02-04-PLAN.md
 Resume file: None
