@@ -279,6 +279,7 @@ class TestRunCycleFlowStorytelling(unittest.TestCase):
              patch("main._generate_with_quality", return_value={"story_text": "Adapted story text here."}), \
              patch("formats.storytelling.generator.adapt_reddit_post", return_value={"story_text": "Adapted."}), \
              patch("main._run_storytelling_pipeline", return_value="/tmp/output/final.mp4"), \
+             patch("main._pick_background", return_value="/tmp/bg.mp4"), \
              patch("pathlib.Path.exists", return_value=True), \
              patch("os.environ.get", return_value="https://example.com"):
 
@@ -311,6 +312,7 @@ class TestRunCycleFlowStorytelling(unittest.TestCase):
              patch("main._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
              patch("main._generate_with_quality", return_value={"story_text": "Story."}), \
              patch("formats.storytelling.generator.adapt_reddit_post", return_value={"story_text": "S."}), \
+             patch("main._pick_background", return_value="/tmp/bg.mp4"), \
              patch("main.Path") as mock_path_cls:
 
             mock_path = MagicMock(spec=Path)
@@ -443,6 +445,7 @@ class TestYouTubeUploadFailContinues(unittest.TestCase):
              patch("main._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
              patch("main._generate_with_quality", return_value={"story_text": "Story."}), \
              patch("formats.storytelling.generator.adapt_reddit_post"), \
+             patch("main._pick_background", return_value="/tmp/bg.mp4"), \
              patch("main.Path") as mock_path_cls, \
              patch.dict("os.environ", {"INSTAGRAM_PUBLIC_BASE_URL": "https://example.com"}):
 
@@ -473,6 +476,7 @@ class TestYouTubeUploadFailContinues(unittest.TestCase):
              patch("main._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
              patch("main._generate_with_quality", return_value={"story_text": "S."}), \
              patch("formats.storytelling.generator.adapt_reddit_post"), \
+             patch("main._pick_background", return_value="/tmp/bg.mp4"), \
              patch("main.Path") as mock_path_cls:
 
             mock_path = MagicMock(spec=Path)
@@ -532,6 +536,7 @@ class TestInstagramSkipNoConfig(unittest.TestCase):
              patch("main._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
              patch("main._generate_with_quality", return_value={"story_text": "S."}), \
              patch("formats.storytelling.generator.adapt_reddit_post"), \
+             patch("main._pick_background", return_value="/tmp/bg.mp4"), \
              patch("main.Path") as mock_path_cls:
 
             mock_path = MagicMock(spec=Path)
@@ -560,6 +565,7 @@ class TestInstagramSkipNoConfig(unittest.TestCase):
              patch("main._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
              patch("main._generate_with_quality", return_value={"story_text": "S."}), \
              patch("formats.storytelling.generator.adapt_reddit_post"), \
+             patch("main._pick_background", return_value="/tmp/bg.mp4"), \
              patch("main.Path") as mock_path_cls:
 
             mock_path = MagicMock(spec=Path)
@@ -613,6 +619,7 @@ class TestYouTubeSkipNoToken(unittest.TestCase):
              patch("main._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
              patch("main._generate_with_quality", return_value={"story_text": "S."}), \
              patch("formats.storytelling.generator.adapt_reddit_post"), \
+             patch("main._pick_background", return_value="/tmp/bg.mp4"), \
              patch("main.Path") as mock_path_cls:
 
             mock_path = MagicMock(spec=Path)
@@ -640,6 +647,7 @@ class TestYouTubeSkipNoToken(unittest.TestCase):
              patch("main._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
              patch("main._generate_with_quality", return_value={"story_text": "S."}), \
              patch("formats.storytelling.generator.adapt_reddit_post"), \
+             patch("main._pick_background", return_value="/tmp/bg.mp4"), \
              patch("main.logger") as mock_logger, \
              patch("main.Path") as mock_path_cls:
 

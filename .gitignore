@@ -31,8 +31,13 @@ assets/music/
 *oauth*.json
 client_secret*.json
 
+# Per-channel upload tokens
+data/channels/*/youtube_token.json
+data/channels/*/instagram_token.json
+
 # OS
 .DS_Store
 Thumbs.db
+
 
 CLAUDE.md

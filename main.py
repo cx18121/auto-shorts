@@ -113,6 +113,28 @@ def main() -> None:
         ),
     )
 
+    # --- run-cycle ---
+    sub.add_parser(
+        "run-cycle",
+        help=(
+            "Pull the highest-scored approved item from the backlog, generate a video, "
+            "upload to YouTube and Instagram, mark item used, and log upload records."
+        ),
+    )
+
+    # --- upload-history ---
+    p_hist = sub.add_parser(
+        "upload-history",
+        help="Print recent upload history for the selected channel",
+    )
+    p_hist.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        metavar="N",
+        help="Maximum number of records to display (default: 20)",
+    )
+
     args = parser.parse_args()
 
     if args.channel == "all":
@@ -794,6 +816,258 @@ def cmd_backlog_status(channel_cfg: "config.ChannelConfig | None" = None) -> Non
         conn.close()
 
 
+def cmd_run_cycle(channel_cfg: "config.ChannelConfig") -> None:
+    """Orchestrate one posting cycle for a channel.
+
+    Flow:
+      1. Check enabled flag — skip if False.
+      2. Pull highest-scored approved item from backlog.
+      3. If backlog is empty, run scrape fallback once then re-query.
+      4. Generate a video from the item.
+      5. Generate upload metadata (title + hashtags) via Claude Haiku.
+      6. Upload to YouTube (skip if token missing).
+      7. Upload to Instagram (skip if user_id empty or token missing).
+      8. Mark item as used in the DB.
+      9. Log summary.
+
+    Args:
+        channel_cfg: Channel configuration with enabled, format, hashtags,
+                     youtube_client_id/secret, instagram_user_id, and slug.
+    """
+    import os
+
+    slug = channel_cfg.slug
+
+    if not channel_cfg.enabled:
+        logger.info("Channel %s is disabled, skipping", slug)
+        return
+
+    from analysis.db import get_connection
+    from pipeline.backlog import (
+        get_approved_stories, get_approved_tweets,
+        mark_story_used, mark_used,
+    )
+    from pipeline.upload import (
+        upload_to_youtube, upload_to_instagram,
+        generate_upload_metadata, init_upload_table, log_upload,
+        refresh_instagram_token_if_needed,
+    )
+
+    conn = get_connection()
+    try:
+        init_upload_table(conn)
+
+        fmt = channel_cfg.format
+
+        # ---------------------------------------------------------------
+        # Step 1: Pick best item from backlog
+        # ---------------------------------------------------------------
+        if fmt == "storytelling":
+            rows = get_approved_stories(conn, slug)
+            if not rows:
+                logger.info("Backlog empty for [%s] — running scrape fallback", slug)
+                cmd_scrape("reddit", "week", channel_cfg)
+                rows = get_approved_stories(conn, slug)
+            if not rows:
+                logger.warning(
+                    "No approved items for %s after scrape fallback — aborting run-cycle", slug
+                )
+                return
+        else:
+            rows = get_approved_tweets(conn, slug)
+            if not rows:
+                logger.info("Backlog empty for [%s] — running scrape fallback", slug)
+                cmd_scrape("tweets", "week", channel_cfg)
+                rows = get_approved_tweets(conn, slug)
+            if not rows:
+                logger.warning(
+                    "No approved items for %s after scrape fallback — aborting run-cycle", slug
+                )
+                return
+
+        row = rows[0]
+
+        # ---------------------------------------------------------------
+        # Step 2: Generate video
+        # ---------------------------------------------------------------
+        video_path: str | None = None
+
+        if fmt == "storytelling":
+            from formats.storytelling.generator import adapt_reddit_post
+            from formats.storytelling.quality import check_quality
+
+            profile: dict | None = None
+            if channel_cfg.style_profile:
+                profile_path = Path(channel_cfg.style_profile)
+                if profile_path.exists():
+                    try:
+                        profile = json.loads(profile_path.read_text())
+                    except Exception as exc:
+                        logger.warning("Failed to load style profile %s: %s", profile_path, exc)
+
+            post = {
+                "title": row["title"],
+                "body": row["body"],
+                "subreddit": row["subreddit"],
+                "score": row["score"],
+            }
+
+            story = _generate_with_quality(
+                generate_fn=lambda p=post: adapt_reddit_post(p, slug, profile),
+                quality_fn=lambda s: check_quality(s, profile) if profile else {"passed": True, "overall": 10.0},
+                label="run-cycle-story",
+            )
+            if story is None:
+                logger.error("run-cycle: story generation failed for %s — aborting", slug)
+                return
+
+            background = _pick_background()
+            video_path = _run_storytelling_pipeline(story["story_text"], background)
+            content_text = story["story_text"]
+
+        else:  # tweets
+            from formats.tweets.renderer import render_tweet
+            from formats.tweets.assembler import assemble_tweet_video
+
+            tweet = {
+                "tweet_id": row["tweet_id"],
+                "tweet_text": row["tweet_text"],
+                "username": row["username"],
+                "likes": row["likes"],
+                "retweets": row["retweets"],
+            }
+            video_path = _run_tweet_pipeline(tweet, render_tweet, assemble_tweet_video)
+            content_text = row["tweet_text"]
+
+        if not video_path:
+            logger.error("run-cycle: video generation failed for %s — aborting", slug)
+            return
+
+        # ---------------------------------------------------------------
+        # Step 3: Generate upload metadata
+        # ---------------------------------------------------------------
+        metadata = generate_upload_metadata(content_text, channel_cfg.hashtags, fmt)
+        title = metadata["title"]
+        hashtags = metadata["hashtags"]
+        description = f"{title}\n\n#{'  #'.join(hashtags)}" if hashtags else title
+
+        # ---------------------------------------------------------------
+        # Step 4: Upload to YouTube
+        # ---------------------------------------------------------------
+        yt_token_path = Path(config.CHANNELS_DIR) / slug / "youtube_token.json"
+        yt_status = "skipped"
+
+        if not yt_token_path.exists():
+            logger.warning(
+                "No YouTube token for %s — skipping YouTube upload", slug
+            )
+        else:
+            try:
+                video_id = upload_to_youtube(
+                    video_path,
+                    title,
+                    description,
+                    hashtags,
+                    yt_token_path,
+                    channel_cfg.youtube_client_id,
+                    channel_cfg.youtube_client_secret,
+                )
+                logger.info("run-cycle: YouTube upload success video_id=%s", video_id)
+                log_upload(conn, slug, "youtube", video_id, title, "success")
+                yt_status = "success"
+            except Exception as exc:
+                logger.error("run-cycle: YouTube upload failed for %s: %s", slug, exc)
+                log_upload(conn, slug, "youtube", "", title, "failed", error_msg=str(exc))
+                yt_status = "failed"
+
+        # ---------------------------------------------------------------
+        # Step 5: Upload to Instagram
+        # ---------------------------------------------------------------
+        ig_token_path = Path(config.CHANNELS_DIR) / slug / "instagram_token.json"
+        ig_status = "skipped"
+
+        if not channel_cfg.instagram_user_id or not ig_token_path.exists():
+            logger.info("Instagram not configured for %s — skipping", slug)
+        else:
+            public_base_url = os.environ.get("INSTAGRAM_PUBLIC_BASE_URL", "")
+            if not public_base_url:
+                logger.warning(
+                    "INSTAGRAM_PUBLIC_BASE_URL not set — skipping Instagram upload for %s", slug
+                )
+            else:
+                import os.path as osp
+                video_url = f"{public_base_url.rstrip('/')}/{osp.basename(video_path)}"
+                caption = f"{title}\n\n#{'  #'.join(hashtags)}" if hashtags else title
+
+                try:
+                    access_token = refresh_instagram_token_if_needed(ig_token_path)
+                    media_id = upload_to_instagram(
+                        video_url,
+                        caption,
+                        channel_cfg.instagram_user_id,
+                        access_token,
+                    )
+                    logger.info("run-cycle: Instagram upload success media_id=%s", media_id)
+                    log_upload(conn, slug, "instagram", media_id, title, "success")
+                    ig_status = "success"
+                except Exception as exc:
+                    logger.error("run-cycle: Instagram upload failed for %s: %s", slug, exc)
+                    log_upload(conn, slug, "instagram", "", title, "failed", error_msg=str(exc))
+                    ig_status = "failed"
+
+        # ---------------------------------------------------------------
+        # Step 6: Mark item as used
+        # ---------------------------------------------------------------
+        if fmt == "storytelling":
+            mark_story_used(conn, row["id"])
+        else:
+            mark_used(conn, "backlog_tweets", row["tweet_id"])
+        conn.commit()
+
+        logger.info(
+            "Run cycle complete for %s: YouTube=%s, Instagram=%s",
+            slug, yt_status, ig_status,
+        )
+
+    finally:
+        conn.close()
+
+
+def cmd_upload_history(
+    channel_cfg: "config.ChannelConfig",
+    limit: int = 20,
+) -> None:
+    """Print a formatted table of recent uploads for the given channel.
+
+    Args:
+        channel_cfg: Channel configuration; slug used to filter records.
+        limit:       Maximum number of records to display.
+    """
+    from analysis.db import get_connection
+    from pipeline.upload import get_upload_history
+
+    conn = get_connection()
+    try:
+        records = get_upload_history(conn, channel_cfg.slug, limit)
+    finally:
+        conn.close()
+
+    if not records:
+        print(f"No upload records found for [{channel_cfg.slug}].")
+        return
+
+    # Table header
+    print(f"\n{'Date':<28} {'Platform':<12} {'Video ID':<18} {'Status':<9} {'Title'}")
+    print("-" * 100)
+    for rec in records:
+        date = rec.get("uploaded_at", "")[:19].replace("T", " ")
+        platform = rec.get("platform", "")
+        video_id = rec.get("video_id", "")[:16]
+        status = rec.get("status", "")
+        title = rec.get("title", "")[:40]
+        print(f"{date:<28} {platform:<12} {video_id:<18} {status:<9} {title}")
+
+
 def _dispatch_command(args: argparse.Namespace, channel_cfg: "config.ChannelConfig") -> None:
     """Route the parsed command to the correct handler for a single channel."""
     if args.command == "analyze":
@@ -829,6 +1103,10 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg: "config.ChannelConf
         cmd_setup_youtube(channel_cfg)
     elif args.command == "setup-instagram":
         cmd_setup_instagram(channel_cfg, getattr(args, "token", None))
+    elif args.command == "run-cycle":
+        cmd_run_cycle(channel_cfg)
+    elif args.command == "upload-history":
+        cmd_upload_history(channel_cfg, getattr(args, "limit", 20))
 
 
 if __name__ == "__main__":
