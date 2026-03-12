@@ -92,6 +92,27 @@ def main() -> None:
     # --- backlog-status ---
     sub.add_parser("backlog-status", help="Print backlog counts per channel")
 
+    # --- setup-youtube ---
+    sub.add_parser(
+        "setup-youtube",
+        help="Run YouTube OAuth flow and save token for the selected channel",
+    )
+
+    # --- setup-instagram ---
+    p_ig = sub.add_parser(
+        "setup-instagram",
+        help="Exchange an Instagram short-lived token and save for the selected channel",
+    )
+    p_ig.add_argument(
+        "--token",
+        default=None,
+        metavar="SHORT_LIVED_TOKEN",
+        help=(
+            "Short-lived Instagram access token to exchange for a long-lived token. "
+            "If omitted, the CLI will print instructions and prompt for it."
+        ),
+    )
+
     args = parser.parse_args()
 
     if args.channel == "all":
@@ -512,6 +533,163 @@ def _pick_background() -> str:
     return str(clips[0])
 
 
+def cmd_setup_youtube(channel_cfg: "config.ChannelConfig") -> None:
+    """Run YouTube OAuth 2.0 desktop flow and save token for the given channel.
+
+    Requires youtube_client_id and youtube_client_secret to be set in channels.yaml.
+    Token is saved to data/channels/{slug}/youtube_token.json.
+
+    Args:
+        channel_cfg: Channel configuration with OAuth client credentials.
+    """
+    from pipeline.upload import setup_youtube_oauth
+
+    token_path = Path(config.CHANNELS_DIR) / channel_cfg.slug / "youtube_token.json"
+
+    if token_path.exists():
+        confirm = input(
+            f"A YouTube token already exists at {token_path}.\n"
+            "Overwrite? (y/N): "
+        ).strip().lower()
+        if confirm != "y":
+            print("Aborted.")
+            return
+
+    if not channel_cfg.youtube_client_id or not channel_cfg.youtube_client_secret:
+        print(
+            "ERROR: youtube_client_id and youtube_client_secret must be set in channels.yaml "
+            f"for channel '{channel_cfg.slug}'.\n"
+            "Create an OAuth 2.0 Client ID (Desktop app type) in Google Cloud Console → "
+            "APIs & Services → Credentials, then add the values to channels.yaml."
+        )
+        sys.exit(1)
+
+    setup_youtube_oauth(channel_cfg, token_path)
+    print(f"\nYouTube token saved → {token_path}")
+    print(
+        "\nNOTE: YouTube API projects created after July 2020 may have uploads locked to "
+        "private until the GCP project passes a compliance audit.\n"
+        "See: https://support.google.com/youtube/contact/yt_api_form"
+    )
+
+
+def cmd_setup_instagram(
+    channel_cfg: "config.ChannelConfig",
+    token: str | None = None,
+) -> None:
+    """Exchange an Instagram short-lived token for a long-lived token and save it.
+
+    Fetches the numeric Instagram user ID and saves the token to
+    data/channels/{slug}/instagram_token.json.
+
+    Args:
+        channel_cfg: Channel configuration (slug used for token path).
+        token:       Short-lived access token. If None, prompts the user.
+    """
+    import datetime
+    import requests
+
+    token_path = Path(config.CHANNELS_DIR) / channel_cfg.slug / "instagram_token.json"
+
+    if token is None:
+        print(
+            "\nTo get a short-lived Instagram access token:\n"
+            "  1. Go to https://developers.facebook.com/tools/explorer/\n"
+            "  2. Select your Meta App and click 'Generate Access Token'.\n"
+            "  3. Grant instagram_content_publish and instagram_basic permissions.\n"
+            "  4. Copy the generated token.\n"
+        )
+        try:
+            token = input("Paste your short-lived Instagram access token: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nAborted.")
+            return
+        if not token:
+            print("ERROR: No token provided.")
+            sys.exit(1)
+
+    # Exchange short-lived token for long-lived token
+    app_secret = channel_cfg.instagram_access_token  # used as app_secret placeholder
+    # Note: the exchange endpoint requires the Meta App Secret (not the access token).
+    # We prompt for it if not available on the channel config.
+    meta_app_secret = app_secret or ""
+    if not meta_app_secret:
+        try:
+            meta_app_secret = input(
+                "Enter your Meta App Secret (from developers.facebook.com → Your App → Settings → Basic): "
+            ).strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nAborted.")
+            return
+        if not meta_app_secret:
+            print("ERROR: Meta App Secret is required for token exchange.")
+            sys.exit(1)
+
+    exchange_url = (
+        "https://graph.instagram.com/access_token"
+        f"?grant_type=ig_exchange_token"
+        f"&client_secret={meta_app_secret}"
+        f"&access_token={token}"
+    )
+
+    long_lived_token: str | None = None
+    expires_in: int = 0
+    for attempt in range(1, 4):
+        try:
+            resp = requests.get(exchange_url, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            long_lived_token = data["access_token"]
+            expires_in = data.get("expires_in", 5183944)  # ~60 days default
+            break
+        except Exception as exc:
+            logger.warning("Instagram token exchange attempt %d/3 failed: %s", attempt, exc)
+            if attempt == 3:
+                print(f"ERROR: Token exchange failed after 3 attempts: {exc}")
+                sys.exit(1)
+            time.sleep(2 ** attempt)
+
+    # Fetch numeric user ID and username
+    me_url = f"https://graph.instagram.com/me?fields=id,username&access_token={long_lived_token}"
+    ig_user_id: str = ""
+    ig_username: str = ""
+    for attempt in range(1, 4):
+        try:
+            resp = requests.get(me_url, timeout=10)
+            resp.raise_for_status()
+            me = resp.json()
+            ig_user_id = me.get("id", "")
+            ig_username = me.get("username", "")
+            break
+        except Exception as exc:
+            logger.warning("Instagram /me fetch attempt %d/3 failed: %s", attempt, exc)
+            if attempt == 3:
+                print(f"ERROR: Could not fetch Instagram user info: {exc}")
+                sys.exit(1)
+            time.sleep(2 ** attempt)
+
+    expires_at = (
+        datetime.datetime.now(datetime.timezone.utc)
+        + datetime.timedelta(seconds=expires_in)
+    ).isoformat()
+
+    token_data = {
+        "access_token": long_lived_token,
+        "user_id": ig_user_id,
+        "expires_at": expires_at,
+    }
+
+    token_path.parent.mkdir(parents=True, exist_ok=True)
+    token_path.write_text(json.dumps(token_data, indent=2), encoding="utf-8")
+
+    print(f"\nInstagram token saved → {token_path}")
+    print(f"Username: @{ig_username}  |  User ID: {ig_user_id}")
+    print(
+        "\nReminder: Ensure your Instagram account is a Business or Creator account "
+        "connected to a Facebook Page."
+    )
+
+
 def cmd_scrape(fmt: str, window: str,
                channel_cfg: "config.ChannelConfig") -> None:
     """Scrape content into the backlog for one channel."""
@@ -647,6 +825,10 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg: "config.ChannelConf
         cmd_review(channel_cfg)
     elif args.command == "backlog-status":
         cmd_backlog_status(channel_cfg)
+    elif args.command == "setup-youtube":
+        cmd_setup_youtube(channel_cfg)
+    elif args.command == "setup-instagram":
+        cmd_setup_instagram(channel_cfg, getattr(args, "token", None))
 
 
 if __name__ == "__main__":
