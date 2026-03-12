@@ -25,6 +25,7 @@ hypothetical-scenarios:
     min_words: 400
     max_words: 1200
     min_likes: 1000
+  style_profile: ""  # Path to style profile JSON (optional — omit or leave empty to use niche defaults)
 
 relationships:
   name: "Relationships"
@@ -48,6 +49,7 @@ relationships:
     min_words: 400
     max_words: 1200
     min_likes: 1000
+  style_profile: ""  # Path to style profile JSON (optional — omit or leave empty to use niche defaults)
 
 finance-hustle:
   name: "Finance & Hustle"
@@ -73,3 +75,4 @@ finance-hustle:
     min_words: 200
     max_words: 800
     min_likes: 1000
+  style_profile: ""  # Path to style profile JSON (optional — omit or leave empty to use niche defaults)

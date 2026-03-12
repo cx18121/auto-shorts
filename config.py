@@ -92,6 +92,7 @@ class ChannelConfig:
     youtube_client_secret: str = ""
     instagram_access_token: str = ""
     quality: dict = field(default_factory=dict)
+    style_profile: str = ""
 
     def __post_init__(self) -> None:
         if not _VALID_SLUG_RE.fullmatch(self.slug):
