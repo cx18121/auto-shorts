@@ -76,12 +76,10 @@ class TestSelftextFilter(unittest.TestCase):
 class TestPerSubredditFailureIsolation(unittest.TestCase):
     def test_per_subreddit_failure_isolation(self):
         """A failing subreddit does not block other subreddits from returning posts."""
-        import config
-
         channel_cfg = MagicMock()
         channel_cfg.subreddits = ["AITAH", "relationship_advice"]
 
-        def side_effect(subreddit_name, limit=25):
+        def side_effect(reddit, subreddit_name, time_filter="day", limit=25):
             if subreddit_name == "AITAH":
                 raise Exception("Network error")
             return [
