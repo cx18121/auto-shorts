@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-03-11T23:57:24.104Z"
+stopped_at: Completed 01-03-PLAN.md
+last_updated: "2026-03-12T00:03:02.772Z"
 last_activity: 2026-03-11 — Roadmap created
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -52,6 +52,7 @@ Progress: [░░░░░░░░░░] 0%
 *Updated after each plan completion*
 | Phase 01-niche-config-multi-channel-foundation P01 | 3 | 2 tasks | 3 files |
 | Phase 01-niche-config-multi-channel-foundation P02 | 2 | 1 tasks | 1 files |
+| Phase 01-niche-config-multi-channel-foundation P03 | 3 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -67,6 +68,8 @@ Recent decisions affecting current work:
 - [Phase 01-niche-config-multi-channel-foundation]: CLI tests use subprocess.run to isolate from import-time config failures
 - [Phase 01-niche-config-multi-channel-foundation]: voice_id validated as non-empty but REPLACE_ prefix accepted — runtime concern, not config parsing
 - [Phase 01-niche-config-multi-channel-foundation]: CHANNELS dict populated at module import time for fail-fast behavior on missing channels.yaml
+- [Phase 01-niche-config-multi-channel-foundation]: --channel added to root parser (not subparsers) to enforce main.py --channel X subcommand CLI contract
+- [Phase 01-niche-config-multi-channel-foundation]: channel_cfg defaults to None on all handlers for backward compatibility until Phase 2 uses it
 
 ### Pending Todos
 
@@ -80,6 +83,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T23:57:24.060Z
-Stopped at: Completed 01-02-PLAN.md
+Last session: 2026-03-12T00:03:02.673Z
+Stopped at: Completed 01-03-PLAN.md
 Resume file: None
