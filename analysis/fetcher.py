@@ -21,17 +21,19 @@ from analysis.db import get_connection, init_db
 logger = logging.getLogger(__name__)
 
 _MAX_DURATION_SECONDS = 61   # Shorts are ≤60 s; tiny buffer for rounding
+_MAX_VIDEOS = 50             # Cap playlist fetch to avoid IP bans on transcript step
 
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def fetch_channel(url_or_id: str) -> str:
-    """Fetch all Shorts for a channel and persist them to SQLite.
+def fetch_channel(url_or_id: str, max_videos: int = _MAX_VIDEOS) -> str:
+    """Fetch Shorts for a channel and persist them to SQLite.
 
     Args:
         url_or_id: Channel URL (any format) or raw channel ID / @handle.
+        max_videos: Maximum number of videos to fetch from the playlist.
 
     Returns:
         The resolved channel_id string.
@@ -48,7 +50,7 @@ def fetch_channel(url_or_id: str) -> str:
     uploads_playlist = _get_uploads_playlist(yt, channel_id)
     logger.info("Uploads playlist: %s", uploads_playlist)
 
-    video_ids = _paginate_playlist(yt, uploads_playlist, channel_name)
+    video_ids = _paginate_playlist(yt, uploads_playlist, channel_name, max_videos=max_videos)
     logger.info("Fetched %d total video IDs from playlist", len(video_ids))
 
     shorts = _fetch_video_details(yt, video_ids, channel_id, channel_name)
@@ -141,8 +143,9 @@ def _get_uploads_playlist(yt: Any, channel_id: str) -> str:
     return resp["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
 
 
-def _paginate_playlist(yt: Any, playlist_id: str, channel_name: str) -> list[str]:
-    """Return all video IDs in the playlist (handles pagination)."""
+def _paginate_playlist(yt: Any, playlist_id: str, channel_name: str,
+                       max_videos: int = _MAX_VIDEOS) -> list[str]:
+    """Return video IDs from the playlist, capped at max_videos (most recent first)."""
     video_ids: list[str] = []
     page_token: str | None = None
 
@@ -161,12 +164,14 @@ def _paginate_playlist(yt: Any, playlist_id: str, channel_name: str) -> list[str
             video_ids.append(item["contentDetails"]["videoId"])
 
         page_token = resp.get("nextPageToken")
-        logger.info("Fetched %d/%s videos from @%s...",
-                    len(video_ids), resp.get("pageInfo", {}).get("totalResults", "?"), channel_name)
+        total = resp.get("pageInfo", {}).get("totalResults", "?")
+        logger.info("Fetched %d/%s videos from @%s (cap: %d)...",
+                    len(video_ids), total, channel_name, max_videos)
 
-        if not page_token:
+        if not page_token or len(video_ids) >= max_videos:
             break
 
+    video_ids = video_ids[:max_videos]
     return video_ids
 
 

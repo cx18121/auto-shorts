@@ -1,5 +1,6 @@
 # Environment
 .env
+channels.yaml
 
 # Python
 __pycache__/
@@ -19,6 +20,8 @@ logs/
 
 # Data
 data/pipeline.db
+data/twscrape_accounts.db
+data/*_cookies.txt
 
 # Style profiles (generated, not authored)
 style_profiles/

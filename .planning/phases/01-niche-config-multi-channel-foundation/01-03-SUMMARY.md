@@ -99,6 +99,13 @@ None - no external service configuration required.
 - Phase 2 commands can now use `channel_cfg` to scope output directories, load per-channel style profiles, and apply per-channel voice IDs
 - No blockers
 
+## Self-Check: PASSED
+
+- FOUND: main.py
+- FOUND: .planning/phases/01-niche-config-multi-channel-foundation/01-03-SUMMARY.md
+- FOUND: commit 0cde904 (feat: --channel flag)
+- FOUND: commit 1e35703 (docs: complete plan)
+
 ---
 *Phase: 01-niche-config-multi-channel-foundation*
 *Completed: 2026-03-11*
