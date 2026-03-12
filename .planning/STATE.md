@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-11)
 Phase: 1 of 4 (Niche Config + Multi-Channel Foundation)
 Plan: 0 of TBD in current phase
 Status: Ready to plan
-Last activity: 2026-03-11 — Roadmap created
+Last activity: 2026-03-12 - Completed quick task 1: Fix split-screen video layout, subtitles, audio speed/volume
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -114,6 +114,12 @@ None yet.
 - Codebase concern: twscrape authentication is brittle; Playwright cookie scraper may need to replace it entirely
 - Codebase concern: Playwright browser resource leaks on error paths — fix before batch scraping
 - Phase 4 dependency: YouTube OAuth 2.0 and Instagram Graph API credentials must be configured before upload automation can be tested
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 1 | Fix split-screen video layout, subtitles, audio speed/volume | 2026-03-12 | 6d4c9aa | [1-fix-storytelling-video-use-gameplay-padd](./quick/1-fix-storytelling-video-use-gameplay-padd/) |
 
 ## Session Continuity
 
