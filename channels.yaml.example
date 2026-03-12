@@ -20,6 +20,11 @@ hypothetical-scenarios:
   youtube_client_id: ""
   youtube_client_secret: ""
   instagram_access_token: ""
+  quality:
+    min_upvotes: 1000
+    min_words: 400
+    max_words: 1200
+    min_likes: 1000
 
 relationships:
   name: "Relationships"
@@ -38,6 +43,11 @@ relationships:
   youtube_client_id: ""
   youtube_client_secret: ""
   instagram_access_token: ""
+  quality:
+    min_upvotes: 1000
+    min_words: 400
+    max_words: 1200
+    min_likes: 1000
 
 finance-hustle:
   name: "Finance & Hustle"
@@ -58,3 +68,8 @@ finance-hustle:
   youtube_client_id: ""
   youtube_client_secret: ""
   instagram_access_token: ""
+  quality:
+    min_upvotes: 500
+    min_words: 200
+    max_words: 800
+    min_likes: 1000

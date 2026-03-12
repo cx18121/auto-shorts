@@ -8,7 +8,7 @@ import logging
 import os
 import re
 import yaml
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -85,6 +85,7 @@ class ChannelConfig:
     youtube_client_id: str = ""
     youtube_client_secret: str = ""
     instagram_access_token: str = ""
+    quality: dict = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not _VALID_SLUG_RE.fullmatch(self.slug):

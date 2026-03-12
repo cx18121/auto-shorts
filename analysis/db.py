@@ -18,6 +18,43 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def init_backlog_tables(conn: sqlite3.Connection) -> None:
+    """Create backlog and niche state tables if they don't exist yet."""
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS backlog_stories (
+        id          TEXT PRIMARY KEY,
+        channel     TEXT NOT NULL,
+        subreddit   TEXT NOT NULL,
+        title       TEXT NOT NULL,
+        body        TEXT NOT NULL,
+        score       INTEGER NOT NULL,
+        word_count  INTEGER NOT NULL,
+        status      TEXT NOT NULL DEFAULT 'pending',
+        scraped_at  TEXT NOT NULL,
+        approved_at TEXT,
+        used_at     TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS backlog_tweets (
+        tweet_id    TEXT PRIMARY KEY,
+        channel     TEXT NOT NULL,
+        username    TEXT NOT NULL,
+        tweet_text  TEXT NOT NULL,
+        likes       INTEGER NOT NULL,
+        retweets    INTEGER NOT NULL,
+        status      TEXT NOT NULL DEFAULT 'pending',
+        scraped_at  TEXT NOT NULL,
+        approved_at TEXT,
+        used_at     TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS niche_state (
+        channel                 TEXT PRIMARY KEY,
+        manually_reviewed_count INTEGER NOT NULL DEFAULT 0
+    );
+    """)
+
+
 def init_db() -> None:
     """Create all tables if they don't exist yet."""
     with get_connection() as conn:
@@ -71,3 +108,4 @@ def init_db() -> None:
             FOREIGN KEY (channel_id) REFERENCES channels(id)
         );
         """)
+        init_backlog_tables(conn)
