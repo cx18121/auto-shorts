@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-11)
 Phase: 1 of 4 (Niche Config + Multi-Channel Foundation)
 Plan: 0 of TBD in current phase
 Status: Ready to plan
-Last activity: 2026-03-12 - Completed quick task 1: Fix split-screen video layout, subtitles, audio speed/volume
+Last activity: 2026-03-12 - Completed quick task 2: Post border with gameplay, zoom out, Komika Axis font, --no-audio
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -120,6 +120,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 1 | Fix split-screen video layout, subtitles, audio speed/volume | 2026-03-12 | 6d4c9aa | [1-fix-storytelling-video-use-gameplay-padd](./quick/1-fix-storytelling-video-use-gameplay-padd/) |
+| 2 | Post border with gameplay, zoom out, Komika Axis font, --no-audio | 2026-03-12 | 98fdecc | [2-reddit-post-border-with-gameplay-visible](./quick/2-reddit-post-border-with-gameplay-visible/) |
 
 ## Session Continuity
 
