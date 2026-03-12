@@ -8,13 +8,19 @@ Scrapes tweets from two sources and merges them:
 Public API:
     setup_account(username, password, email)  -> None  (kept for backwards compat)
     scrape_top_tweets(n, min_likes) -> list[dict]
+    scrape_and_store_tweets(channel_cfg, window) -> dict
 """
+from __future__ import annotations
 
 import asyncio
 import logging
 import re
 from http.cookiejar import MozillaCookieJar
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from config import ChannelConfig
 
 logger = logging.getLogger(__name__)
 
@@ -470,3 +476,97 @@ def scrape_top_tweets(
     )
     logger.info("Found %d unique qualifying tweets total, returning top %d", len(tweets), n)
     return tweets[:n]
+
+
+def scrape_and_store_tweets(
+    channel_cfg: ChannelConfig,
+    window: str = "24h",
+    _conn=None,
+) -> dict:
+    """Scrape tweets for a channel, filter by quality, and store in the backlog.
+
+    Uses ``channel_cfg.twitter_accounts`` as the account list — NOT the global
+    ``VIRAL_ACCOUNTS`` constant. Scrapes with ``min_likes=1`` so all raw data is
+    retrieved first; quality filtering happens here so every rejection is logged
+    and auditable.
+
+    Args:
+        channel_cfg: Channel configuration object with ``slug``, ``twitter_accounts``,
+                     and ``quality`` dict (must contain ``min_likes``).
+        window:      Accepted for API symmetry with ``scrape_and_store_reddit``; X.com
+                     has no time-window filter so this parameter is not used.
+        _conn:       Optional SQLite connection for testing. If None, a production
+                     connection is opened via ``analysis.db.get_connection()``.
+
+    Returns:
+        Summary dict with keys:
+            scraped    — total tweets returned by the scraper
+            passed     — tweets that passed quality filtering
+            inserted   — tweets newly inserted into backlog_tweets
+            duplicates — tweets that were already in the DB (skipped)
+    """
+    from pipeline.backlog import insert_tweet
+    from pipeline.quality_filter import passes_tweet_quality
+
+    logger.info(
+        "scrape_and_store_tweets: channel=%s accounts=%s",
+        channel_cfg.slug,
+        channel_cfg.twitter_accounts,
+    )
+
+    raw_tweets = scrape_top_tweets(
+        n=100,
+        min_likes=1,
+        accounts=channel_cfg.twitter_accounts,
+    )
+    logger.info("scrape_and_store_tweets: scraped %d raw tweets", len(raw_tweets))
+
+    counts = {"scraped": len(raw_tweets), "passed": 0, "inserted": 0, "duplicates": 0}
+
+    _owns_conn = _conn is None
+    if _owns_conn:
+        from analysis.db import get_connection
+        _conn = get_connection()
+
+    try:
+        for tweet in raw_tweets:
+            ok, reason = passes_tweet_quality(tweet, channel_cfg.quality)
+            if not ok:
+                logger.info(
+                    "Rejected @%s tweet: %s",
+                    tweet.get("username", "?"),
+                    reason,
+                )
+                continue
+
+            counts["passed"] += 1
+            item = {
+                "tweet_id":   tweet["tweet_id"],
+                "channel":    channel_cfg.slug,
+                "username":   tweet["username"],
+                "tweet_text": tweet["tweet_text"],
+                "likes":      tweet["likes"],
+                "retweets":   tweet["retweets"],
+            }
+            inserted = insert_tweet(_conn, item)
+            if inserted:
+                counts["inserted"] += 1
+            else:
+                counts["duplicates"] += 1
+                logger.info(
+                    "Duplicate tweet_id=%s from @%s, skipped",
+                    tweet["tweet_id"],
+                    tweet.get("username", "?"),
+                )
+    finally:
+        if _owns_conn:
+            _conn.close()
+
+    logger.info(
+        "scrape_and_store_tweets done: scraped=%d passed=%d inserted=%d duplicates=%d",
+        counts["scraped"],
+        counts["passed"],
+        counts["inserted"],
+        counts["duplicates"],
+    )
+    return counts
