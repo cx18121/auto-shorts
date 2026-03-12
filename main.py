@@ -32,6 +32,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Automated YouTube Shorts / Instagram Reels pipeline"
     )
+    parser.add_argument(
+        "--channel",
+        required=True,
+        metavar="SLUG",
+        help=(
+            "Channel to operate on (e.g. hypothetical-scenarios, relationships, finance-hustle) "
+            "or 'all' to run all channels sequentially."
+        ),
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     # --- analyze ---
@@ -40,6 +49,8 @@ def main() -> None:
                             metavar="URL", help="Channel URLs or @handles")
     p_analyze.add_argument("--visual", action="store_true",
                             help="Include visual frame/thumbnail analysis (slower, uses Claude vision)")
+    p_analyze.add_argument("--max-videos", type=int, default=50,
+                            help="Max videos to fetch from channel (default: 50)")
 
     # --- generate ---
     p_gen = sub.add_parser("generate", help="Generate and produce videos")
@@ -61,30 +72,29 @@ def main() -> None:
     p_tw.add_argument("--email",    required=True)
     p_tw.add_argument("--email-password", default=None,
                        help="Email password if different from Twitter password")
+    p_tw.add_argument("--cookies", default=None,
+                       help="Browser cookie string (\"key=val; key=val\") or path to "
+                            "a JSON cookies file. If ct0 is present, login is skipped.")
 
     args = parser.parse_args()
 
-    if args.command == "analyze":
-        cmd_analyze(args.channels, args.visual)
-    elif args.command == "generate":
-        scrape = getattr(args, "scrape", False)
-        if not scrape and not args.profile:
-            logger.error("--profile is required unless --scrape is set")
-            sys.exit(1)
-        cmd_generate(args.format, args.profile, args.count,
-                     getattr(args, "thread", False),
-                     scrape=scrape,
-                     min_likes=getattr(args, "min_likes", 500))
-    elif args.command == "setup-twitter":
-        cmd_setup_twitter(args.username, args.password, args.email,
-                          getattr(args, "email_password", None))
+    if args.channel == "all":
+        for slug, channel_cfg in config.CHANNELS.items():
+            logger.info("=" * 60)
+            logger.info("CHANNEL: %s", slug)
+            logger.info("=" * 60)
+            _dispatch_command(args, channel_cfg)
+    else:
+        channel_cfg = config.get_channel(args.channel)
+        _dispatch_command(args, channel_cfg)
 
 
 # ===========================================================================
 # analyze command
 # ===========================================================================
 
-def cmd_analyze(channel_urls: list[str], visual: bool) -> None:
+def cmd_analyze(channel_urls: list[str], visual: bool, max_videos: int = 50,
+                channel_cfg: "config.ChannelConfig | None" = None) -> None:
     from analysis.fetcher import fetch_channel
     from analysis.transcripts import fetch_transcripts
     from analysis.ranker import rank_channel
@@ -99,7 +109,7 @@ def cmd_analyze(channel_urls: list[str], visual: bool) -> None:
 
         # Step 1: fetch metadata + Shorts
         logger.info("[1/4] Fetching channel videos…")
-        channel_id = fetch_channel(url)
+        channel_id = fetch_channel(url, max_videos=max_videos)
 
         # Step 2: fetch transcripts
         logger.info("[2/4] Fetching transcripts…")
@@ -136,14 +146,17 @@ def cmd_analyze(channel_urls: list[str], visual: bool) -> None:
 # ===========================================================================
 
 def cmd_setup_twitter(username: str, password: str, email: str,
-                       email_password: str | None) -> None:
+                       email_password: str | None,
+                       cookies: str | None = None,
+                       channel_cfg: "config.ChannelConfig | None" = None) -> None:
     from formats.tweets.scraper import setup_account
-    setup_account(username, password, email, email_password)
+    setup_account(username, password, email, email_password, cookies)
     print(f"Twitter account @{username} added successfully.")
 
 
 def cmd_generate(fmt: str, profile_path: str | None, count: int, thread: bool,
-                 scrape: bool = False, min_likes: int = 500) -> None:
+                 scrape: bool = False, min_likes: int = 500,
+                 channel_cfg: "config.ChannelConfig | None" = None) -> None:
     profile = None
     if profile_path:
         if not Path(profile_path).exists():
@@ -389,6 +402,31 @@ def _pick_background() -> str:
         logger.error("No background clips found in %s", bg_dir)
         sys.exit(1)
     return str(clips[0])
+
+
+def _dispatch_command(args: argparse.Namespace, channel_cfg: "config.ChannelConfig") -> None:
+    """Route the parsed command to the correct handler for a single channel."""
+    if args.command == "analyze":
+        cmd_analyze(args.channels, args.visual, args.max_videos, channel_cfg=channel_cfg)
+    elif args.command == "generate":
+        scrape = getattr(args, "scrape", False)
+        if not scrape and not args.profile:
+            logger.error("--profile is required unless --scrape is set")
+            sys.exit(1)
+        cmd_generate(
+            args.format, args.profile, args.count,
+            getattr(args, "thread", False),
+            scrape=scrape,
+            min_likes=getattr(args, "min_likes", 500),
+            channel_cfg=channel_cfg,
+        )
+    elif args.command == "setup-twitter":
+        cmd_setup_twitter(
+            args.username, args.password, args.email,
+            getattr(args, "email_password", None),
+            getattr(args, "cookies", None),
+            channel_cfg=channel_cfg,
+        )
 
 
 if __name__ == "__main__":
