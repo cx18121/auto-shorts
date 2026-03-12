@@ -86,6 +86,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Niche Config + Multi-Channel Foundation | 3/3 | Complete   | 2026-03-12 |
-| 2. Content Pipeline | 0/6 | Not started | - |
+| 2. Content Pipeline | 3/6 | In Progress|  |
 | 3. AI Story Generation | 0/TBD | Not started | - |
 | 4. Upload + Scheduler | 0/TBD | Not started | - |
