@@ -7,6 +7,7 @@ Public API:
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +31,11 @@ _SOFT_BREAK = frozenset(",;:")
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate_ass(timestamps_path: str, output_path: str) -> str:
+def generate_ass(
+    timestamps_path: str,
+    output_path: str,
+    speed_factor: float = 1.0,
+) -> str:
     """Build an ASS subtitle file from word-level timestamps.
 
     Reads the timestamps JSON produced by pipeline.tts, groups the words
@@ -40,12 +45,20 @@ def generate_ass(timestamps_path: str, output_path: str) -> str:
         timestamps_path: Path to timestamps JSON (list of
             {"word", "start_ms", "end_ms"} objects).
         output_path: Destination path for the .ass file.
+        speed_factor: Audio playback speed multiplier (e.g. 1.15 for 15% faster).
+            Subtitle timestamps are scaled to stay in sync with sped-up audio.
 
     Returns:
         Absolute path of the written .ass file.
     """
     words: list[dict[str, Any]] = json.loads(Path(timestamps_path).read_text())
     logger.info("Loaded %d words from %s", len(words), timestamps_path)
+
+    # Scale timestamps if audio is sped up
+    if speed_factor != 1.0:
+        for w in words:
+            w["start_ms"] = round(w["start_ms"] / speed_factor)
+            w["end_ms"] = round(w["end_ms"] / speed_factor)
 
     phrases = _group_into_phrases(words)
     logger.info(
@@ -104,8 +117,11 @@ def _group_into_phrases(words: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _make_phrase(words: list[dict[str, Any]]) -> dict[str, Any]:
+    raw = " ".join(w["word"] for w in words)
+    # All caps, strip punctuation for clean subtitle display
+    display = re.sub(r"[^\w\s]", "", raw).upper().strip()
     return {
-        "text": " ".join(w["word"] for w in words),
+        "text": display,
         "start_ms": words[0]["start_ms"],
         "end_ms": words[-1]["end_ms"],
         "word_count": len(words),
@@ -152,7 +168,7 @@ _ASS_STYLES = (
     "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
     "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
     "Alignment, MarginL, MarginR, MarginV, Encoding\n"
-    f"Style: Default,Nunito ExtraBold,88,"
+    f"Style: Default,Nunito ExtraBold,120,"
     f"{_COLOUR_WHITE},{_COLOUR_BLACK},{_COLOUR_BLACK},{_COLOUR_SHADOW},"
     f"-1,0,0,0,"        # Bold=-1 (on), no italic/underline/strikeout
     f"100,100,1,0,"     # ScaleX, ScaleY, Spacing=1 (slight letter spacing), Angle

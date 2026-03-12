@@ -67,6 +67,8 @@ def main() -> None:
                         help="Minimum likes when scraping (default: 500)")
     p_gen.add_argument("--from-backlog", action="store_true",
                         help="Pull approved stories from backlog and adapt via Claude (storytelling only)")
+    p_gen.add_argument("--pick", action="store_true",
+                        help="Interactively choose which backlog item to use (implies --from-backlog)")
 
     # --- setup-twitter ---
     p_tw = sub.add_parser("setup-twitter", help="Add a Twitter/X account for scraping")
@@ -220,7 +222,7 @@ def cmd_setup_twitter(username: str, password: str, email: str,
 def cmd_generate(fmt: str, profile_path: str | None, count: int, thread: bool,
                  scrape: bool = False, min_likes: int = 500,
                  channel_cfg: "config.ChannelConfig | None" = None,
-                 from_backlog: bool = False) -> None:
+                 from_backlog: bool = False, pick: bool = False) -> None:
     profile = None
     if profile_path:
         if not Path(profile_path).exists():
@@ -238,7 +240,7 @@ def cmd_generate(fmt: str, profile_path: str | None, count: int, thread: bool,
 
     if fmt == "storytelling":
         if from_backlog:
-            produced = _generate_storytelling_from_backlog(count, channel_cfg)
+            produced = _generate_storytelling_from_backlog(count, channel_cfg, pick=pick)
         else:
             produced = _generate_storytelling(count, profile, profile_path)
     elif fmt == "tweets":
@@ -286,9 +288,39 @@ def _generate_storytelling(
     return produced
 
 
+def _interactive_pick(rows: list, max_picks: int) -> list:
+    """Display approved backlog items and let the user choose which to use."""
+    print(f"\n{'#':<4} {'Score':<8} {'Words':<7} {'Subreddit':<22} Title")
+    print("-" * 90)
+    for i, row in enumerate(rows, 1):
+        title = row["title"][:50] + ("…" if len(row["title"]) > 50 else "")
+        word_count = len(row["body"].split()) if row["body"] else 0
+        print(f"{i:<4} {row['score']:<8} {word_count:<7} r/{row['subreddit']:<20} {title}")
+
+    print(f"\nEnter numbers to select (comma-separated, max {max_picks}).")
+    print("Example: 1,3,5  or just: 2")
+    try:
+        choice = input("\n> ").strip()
+    except (EOFError, KeyboardInterrupt):
+        return []
+
+    if not choice:
+        return []
+
+    selected = []
+    for part in choice.split(","):
+        part = part.strip()
+        if part.isdigit():
+            idx = int(part) - 1
+            if 0 <= idx < len(rows):
+                selected.append(rows[idx])
+    return selected[:max_picks]
+
+
 def _generate_storytelling_from_backlog(
     count: int,
     channel_cfg: "config.ChannelConfig | None",
+    pick: bool = False,
 ) -> list[str]:
     """Pull approved Reddit posts from the backlog and produce story videos.
 
@@ -298,6 +330,7 @@ def _generate_storytelling_from_backlog(
     Args:
         count:       Maximum number of videos to produce.
         channel_cfg: Channel configuration; slug and optional style_profile path used.
+        pick:        If True, display approved posts and let the user choose.
 
     Returns:
         List of video file paths produced.
@@ -329,6 +362,12 @@ def _generate_storytelling_from_backlog(
             logger.warning("No approved stories in backlog for [%s]", slug)
             return []
 
+        if pick:
+            rows = _interactive_pick(rows, count)
+            if not rows:
+                print("No stories selected.")
+                return []
+
         logger.info("Found %d approved story/stories in backlog for [%s]", len(rows), slug)
         background = _pick_background()
         produced: list[str] = []
@@ -356,7 +395,14 @@ def _generate_storytelling_from_backlog(
                 logger.error("Backlog story %d rejected after all retries, skipping", i + 1)
                 continue
 
-            video_path = _run_storytelling_pipeline(story["story_text"], background)
+            video_path = _run_storytelling_pipeline(
+                story["story_text"], background,
+                post_meta={
+                    "title": story.get("title", post["title"]),
+                    "subreddit": post.get("subreddit", "stories"),
+                    "score": post.get("score", 0),
+                },
+            )
             if video_path:
                 mark_story_used(conn, row["id"])
                 conn.commit()
@@ -368,26 +414,69 @@ def _generate_storytelling_from_backlog(
         conn.close()
 
 
-def _run_storytelling_pipeline(story_text: str, background: str) -> str | None:
+def _run_storytelling_pipeline(
+    story_text: str,
+    background: str,
+    post_meta: dict | None = None,
+) -> str | None:
+    """Run TTS + assembly. If post_meta is provided, uses split-screen layout."""
+    from formats.storytelling.assembler import assemble_split_video
+
     run_id  = int(time.time())
     workdir = config.OUTPUT_DIR / str(run_id)
     workdir.mkdir(parents=True, exist_ok=True)
 
     try:
-        logger.info("[1/3] TTS…")
+        from formats.storytelling.assembler import AUDIO_SPEED
+
+        logger.info("[1/4] TTS…")
         tts = generate_tts(story_text, str(workdir))
 
-        logger.info("[2/3] Subtitles…")
-        subs = generate_ass(tts["timestamps_path"], str(workdir / "subtitles.ass"))
+        if post_meta:
+            # Split-screen: gameplay background + Reddit post overlay + subtitles
+            from formats.storytelling.reddit_renderer import render_reddit_post
+            logger.info("[2/4] Rendering Reddit post…")
+            post_img = render_reddit_post(
+                story_text=story_text,
+                title=post_meta.get("title", ""),
+                subreddit=post_meta.get("subreddit", "stories"),
+                score=post_meta.get("score", 0),
+                output_path=str(workdir / "reddit_post.png"),
+            )
 
-        logger.info("[3/3] Assembling…")
-        out = assemble_video(
-            background_path=background,
-            audio_path=tts["audio_path"],
-            subtitles_path=subs,
-            output_path=str(workdir / "final.mp4"),
-            duration_seconds=tts["duration_seconds"],
-        )
+            logger.info("[3/4] Subtitles…")
+            subs = generate_ass(
+                tts["timestamps_path"],
+                str(workdir / "subtitles.ass"),
+                speed_factor=AUDIO_SPEED,
+            )
+
+            logger.info("[4/4] Assembling split-screen…")
+            out = assemble_split_video(
+                background_path=background,
+                audio_path=tts["audio_path"],
+                post_image_path=post_img,
+                subtitles_path=subs,
+                output_path=str(workdir / "final.mp4"),
+                duration_seconds=tts["duration_seconds"],
+            )
+        else:
+            # Original full-screen with subtitles
+            logger.info("[2/4] Subtitles…")
+            subs = generate_ass(
+                tts["timestamps_path"],
+                str(workdir / "subtitles.ass"),
+                speed_factor=AUDIO_SPEED,
+            )
+
+            logger.info("[3/4] Assembling…")
+            out = assemble_video(
+                background_path=background,
+                audio_path=tts["audio_path"],
+                subtitles_path=subs,
+                output_path=str(workdir / "final.mp4"),
+                duration_seconds=tts["duration_seconds"],
+            )
         return out
     except Exception as e:
         logger.error("Pipeline failed: %s", e)
@@ -1075,6 +1164,9 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg: "config.ChannelConf
     elif args.command == "generate":
         scrape = getattr(args, "scrape", False)
         from_backlog = getattr(args, "from_backlog", False)
+        pick = getattr(args, "pick", False)
+        if pick:
+            from_backlog = True
         if not scrape and not from_backlog and not args.profile:
             logger.error("--profile is required unless --scrape or --from-backlog is set")
             sys.exit(1)
@@ -1085,6 +1177,7 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg: "config.ChannelConf
             min_likes=getattr(args, "min_likes", 500),
             channel_cfg=channel_cfg,
             from_backlog=from_backlog,
+            pick=pick,
         )
     elif args.command == "setup-twitter":
         cmd_setup_twitter(
