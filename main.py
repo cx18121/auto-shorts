@@ -90,8 +90,10 @@ def main() -> None:
     p_scrape = sub.add_parser("scrape", help="Scrape content into the backlog")
     p_scrape.add_argument("--format", choices=["reddit", "tweets"], required=True,
                           help="Content source to scrape")
-    p_scrape.add_argument("--window", choices=["24h", "month"], default="24h",
-                          help="Time window: '24h' for daily (default), 'month' for bootstrap fill")
+    p_scrape.add_argument("--window", choices=["24h", "month", "year"], default="24h",
+                          help="Time window: '24h' for daily (default), 'month' for bootstrap fill, 'year' for deep backlog")
+    p_scrape.add_argument("--review", action="store_true",
+                          help="Drop into interactive review after scraping")
 
     # --- review ---
     sub.add_parser("review", help="Review pending backlog items interactively")
@@ -1099,7 +1101,14 @@ def cmd_run_cycle(channel_cfg: "config.ChannelConfig", publish_at: str | None = 
                 return
 
             background = _pick_background()
-            video_path = _run_storytelling_pipeline(story["story_text"], background)
+            video_path = _run_storytelling_pipeline(
+                story["story_text"], background,
+                post_meta={
+                    "title": story.get("title", post["title"]),
+                    "subreddit": post.get("subreddit", "stories"),
+                    "score": post.get("score", 0),
+                },
+            )
             content_text = story["story_text"]
 
         else:  # tweets
@@ -1287,6 +1296,8 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg: "config.ChannelConf
         )
     elif args.command == "scrape":
         cmd_scrape(args.format, args.window, channel_cfg)
+        if getattr(args, "review", False):
+            cmd_review(channel_cfg)
     elif args.command == "review":
         cmd_review(channel_cfg)
     elif args.command == "backlog-status":

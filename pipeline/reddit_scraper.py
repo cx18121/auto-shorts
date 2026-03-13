@@ -29,6 +29,7 @@ INVALID_SELFTEXT: frozenset[str] = frozenset({"", "[removed]", "[deleted]"})
 WINDOW_MAP: dict[str, str] = {
     "24h": "day",
     "month": "month",
+    "year": "year",
 }
 
 _USER_AGENT = "auto-shorts/1.0 (reddit public JSON scraper)"
@@ -173,7 +174,7 @@ def scrape_and_store_reddit(
 
     Args:
         channel_cfg: Channel configuration from channels.yaml (ChannelConfig dataclass).
-        window:      Time window string — "24h" or "month". Defaults to "24h".
+        window:      Time window string — "24h", "month", or "year". Defaults to "24h".
         limit:       Maximum posts to fetch per subreddit.
 
     Returns:
