@@ -119,7 +119,9 @@ def _group_into_phrases(words: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _make_phrase(words: list[dict[str, Any]]) -> dict[str, Any]:
     raw = " ".join(w["word"] for w in words)
     # All caps, strip punctuation for clean subtitle display
-    display = re.sub(r"[^\w\s]", "", raw).upper().strip()
+    # Replace dashes/emdashes with spaces so joined words stay separated
+    cleaned = re.sub(r"[\u2013\u2014\-]+", " ", raw)
+    display = re.sub(r"[^\w\s]", "", cleaned).upper().strip()
     return {
         "text": display,
         "start_ms": words[0]["start_ms"],
@@ -168,11 +170,11 @@ _ASS_STYLES = (
     "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
     "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
     "Alignment, MarginL, MarginR, MarginV, Encoding\n"
-    f"Style: Default,Komika Axis,120,"
+    f"Style: Default,Komika Axis,150,"
     f"{_COLOUR_WHITE},{_COLOUR_BLACK},{_COLOUR_BLACK},{_COLOUR_SHADOW},"
     f"-1,0,0,0,"        # Bold=-1 (on), no italic/underline/strikeout
     f"100,100,1,0,"     # ScaleX, ScaleY, Spacing=1 (slight letter spacing), Angle
-    f"1,6,2,"           # BorderStyle=1, Outline=6px (thick border), Shadow=2px
+    f"1,18,2,"          # BorderStyle=1, Outline=18px (3x thicker border), Shadow=2px
     f"2,40,40,768,1\n"  # Alignment=2 (bottom-centre), MarginL/R=40, MarginV=768 (~40% from bottom), Encoding=1
     "\n"
 )
