@@ -334,11 +334,11 @@ def get_pending_stories(conn: sqlite3.Connection, channel: str) -> list:
 
 
 def get_pending_tweets(conn: sqlite3.Connection, channel: str) -> list:
-    """Return pending tweets for *channel*, ordered by likes DESC."""
+    """Return pending tweets for *channel*, ordered by computed score (likes + retweets*3) DESC."""
     return conn.execute(
         "SELECT * FROM backlog_tweets"
         " WHERE channel=? AND status='pending'"
-        " ORDER BY likes DESC",
+        " ORDER BY (likes + retweets * 3) DESC",
         (channel,),
     ).fetchall()
 
