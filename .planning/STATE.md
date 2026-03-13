@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-11)
 Phase: 1 of 4 (Niche Config + Multi-Channel Foundation)
 Plan: 0 of TBD in current phase
 Status: Ready to plan
-Last activity: 2026-03-12 - Completed quick task 2: Post border with gameplay, zoom out, Komika Axis font, --no-audio
+Last activity: 2026-03-13 - Completed quick task 3: Install Komika Axis font, fontsdir wiring, lower subtitle position
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -121,9 +121,10 @@ None yet.
 |---|-------------|------|--------|-----------|
 | 1 | Fix split-screen video layout, subtitles, audio speed/volume | 2026-03-12 | 6d4c9aa | [1-fix-storytelling-video-use-gameplay-padd](./quick/1-fix-storytelling-video-use-gameplay-padd/) |
 | 2 | Post border with gameplay, zoom out, Komika Axis font, --no-audio | 2026-03-12 | 98fdecc | [2-reddit-post-border-with-gameplay-visible](./quick/2-reddit-post-border-with-gameplay-visible/) |
+| 3 | Install Komika Axis font and wire it into FFmpeg fontsdir, lower subtitle position | 2026-03-13 | ace8c5e | [3-install-komika-axis-font-and-wire-it-int](./quick/3-install-komika-axis-font-and-wire-it-int/) |
 
 ## Session Continuity
 
-Last session: 2026-03-12T20:47:09.899Z
-Stopped at: Completed 04-upload-scheduler 04-03-PLAN.md — Checkpoint approved
+Last session: 2026-03-13T01:04:16Z
+Stopped at: Completed quick task 3: Install Komika Axis font, fontsdir wiring, lower subtitle position
 Resume file: None
