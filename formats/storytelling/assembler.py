@@ -17,6 +17,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Absolute path to the fonts directory — passed to FFmpeg's ass filter via fontsdir
+_FONTS_DIR = str(Path(__file__).resolve().parent.parent.parent / "assets" / "fonts")
+
 # FFmpeg encode settings
 _VIDEO_CODEC = "libx264"
 _PRESET      = "fast"
@@ -111,7 +114,8 @@ def _build_ffmpeg_cmd(
     # Escape the subtitle path for use inside an FFmpeg filter string.
     # On Linux the main hazards are backslashes and colons.
     ass_escaped = _escape_filter_path(str(subs))
-    vf = f"crop=ih*9/16:ih,scale=1080:1920,ass={ass_escaped}"
+    fonts_escaped = _escape_filter_path(_FONTS_DIR)
+    vf = f"crop=ih*9/16:ih,scale=1080:1920,ass={ass_escaped}:fontsdir={fonts_escaped}"
     af = f"atempo={AUDIO_SPEED},volume={_AUDIO_VOLUME}"
     adjusted_duration = duration / AUDIO_SPEED
 
@@ -312,7 +316,8 @@ def _build_split_ffmpeg_cmd(
     # Burn subtitles if provided
     if subs:
         ass_escaped = _escape_filter_path(str(subs))
-        fc_parts.append(f"[comp]ass={ass_escaped}[out]")
+        fonts_escaped = _escape_filter_path(_FONTS_DIR)
+        fc_parts.append(f"[comp]ass={ass_escaped}:fontsdir={fonts_escaped}[out]")
         out_label = "[out]"
     else:
         out_label = "[comp]"
