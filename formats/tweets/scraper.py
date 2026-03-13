@@ -270,7 +270,28 @@ async def _scrape_page_playwright(
     """
     logger.info("Navigating to %s", url)
     try:
-        await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+        # Use "commit" for x.com/home — the page keeps websockets open indefinitely
+        # which prevents "domcontentloaded" from ever resolving in some cookie states.
+        nav_wait = "commit" if "/home" in url else "domcontentloaded"
+        await page.goto(url, wait_until=nav_wait, timeout=30_000)
+
+        # After navigation commit, wait for DOMContentLoaded separately with its own timeout
+        if nav_wait == "commit":
+            try:
+                await page.wait_for_load_state("domcontentloaded", timeout=15_000)
+            except Exception:
+                logger.debug("DOMContentLoaded timeout for %s — continuing anyway", label or url)
+
+        # Detect login wall redirect
+        current_url = page.url
+        if any(marker in current_url for marker in ("/i/flow/", "/login", "/i/nojs_router")):
+            logger.warning(
+                "Cookie authentication failed — redirected to %s. "
+                "Re-export data/x.com_cookies.txt from your browser while logged in to X.com.",
+                current_url,
+            )
+            return []
+
         await page.wait_for_selector('[data-testid="tweet"]', timeout=20_000)
     except Exception as e:
         logger.warning("Failed to load %s: %s", label or url, e)
