@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-11)
 Phase: 1 of 4 (Niche Config + Multi-Channel Foundation)
 Plan: 0 of TBD in current phase
 Status: Ready to plan
-Last activity: 2026-03-13 - Completed quick task 4: Move subtitles to 40% from bottom, thicker text border
+Last activity: 2026-03-13 - Completed quick task 6: Add scheduled publish time to run-cycle command
 
 Progress: [░░░░░░░░░░] 0%
 
