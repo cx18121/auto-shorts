@@ -123,9 +123,10 @@ None yet.
 | 2 | Post border with gameplay, zoom out, Komika Axis font, --no-audio | 2026-03-12 | 98fdecc | [2-reddit-post-border-with-gameplay-visible](./quick/2-reddit-post-border-with-gameplay-visible/) |
 | 3 | Install Komika Axis font and wire it into FFmpeg fontsdir, lower subtitle position | 2026-03-13 | ace8c5e | [3-install-komika-axis-font-and-wire-it-int](./quick/3-install-komika-axis-font-and-wire-it-int/) |
 | 4 | Move subtitles to 40% from bottom, thicker text border | 2026-03-13 | 4e9a4b2 | [4-move-subtitles-to-40-from-bottom-thicker](./quick/4-move-subtitles-to-40-from-bottom-thicker/) |
+| 5 | Make Reddit post borders rounded (transparent corners) | 2026-03-12 | 8d29429 | [5-make-borders-rounded-for-reddit-post-by-](./quick/5-make-borders-rounded-for-reddit-post-by-/) |
 
 ## Session Continuity
 
-Last session: 2026-03-13T01:04:16Z
-Stopped at: Completed quick task 3: Install Komika Axis font, fontsdir wiring, lower subtitle position
+Last session: 2026-03-12T21:32:47Z
+Stopped at: Completed quick task 5: Make Reddit post borders rounded with transparent corners
 Resume file: None
