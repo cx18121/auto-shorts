@@ -5,7 +5,7 @@ Handles:
   - YouTube OAuth 2.0 setup and upload via google-api-python-client
   - Instagram Graph API Reels upload (container -> poll -> publish)
   - Instagram long-lived token refresh
-  - AI-generated upload metadata (title + hashtags) via Claude Haiku
+  - AI-generated upload metadata (title + description + hashtags) via Claude Haiku
   - Upload record logging to SQLite (uploads table)
   - Retry logic with exponential backoff on 5xx errors
 
@@ -54,7 +54,7 @@ INSTAGRAM_BASE_URL = "https://graph.instagram.com/v18.0"
 INSTAGRAM_POLL_INTERVAL_SECONDS = 60
 INSTAGRAM_POLL_MAX_ATTEMPTS = 5
 
-METADATA_MODEL = "claude-haiku-20240307"
+METADATA_MODEL = "claude-haiku-4-5-20251001"
 METADATA_MAX_TOKENS = 256
 METADATA_TEMPERATURE = 0.85
 
@@ -196,6 +196,7 @@ def upload_to_youtube(
     token_path: Path,
     client_id: str,
     client_secret: str,
+    publish_at: str | None = None,
 ) -> str:
     """Upload a video to YouTube Shorts and return the YouTube video ID.
 
@@ -210,6 +211,10 @@ def upload_to_youtube(
         token_path:    Path to saved OAuth token JSON.
         client_id:     YouTube OAuth client ID (for credential refresh).
         client_secret: YouTube OAuth client secret.
+        publish_at:    Optional ISO 8601 datetime string (e.g. "2026-03-13T09:00:00Z").
+                       When provided, the video is uploaded as private and scheduled
+                       to go public at the specified time. When None (default), the
+                       video is uploaded as public immediately.
 
     Returns:
         YouTube video ID string (e.g. 'dQw4w9WgXcQ').
@@ -227,6 +232,17 @@ def upload_to_youtube(
 
     youtube = build("youtube", "v3", credentials=creds)
 
+    if publish_at:
+        logger.info("upload_to_youtube: scheduling publish at %s", publish_at)
+        status_block = {
+            "privacyStatus": "private",
+            "publishAt": publish_at,
+        }
+    else:
+        status_block = {
+            "privacyStatus": "public",
+        }
+
     body = {
         "snippet": {
             "title": title,
@@ -234,9 +250,7 @@ def upload_to_youtube(
             "tags": tags,
             "categoryId": YOUTUBE_CATEGORY_ID,
         },
-        "status": {
-            "privacyStatus": "public",
-        },
+        "status": status_block,
     }
 
     media = MediaFileUpload(str(video_path), chunksize=-1, resumable=True)
@@ -456,11 +470,12 @@ def generate_upload_metadata(
     niche_hashtags: list[str],
     format_type: str,
 ) -> dict:
-    """Generate a YouTube/Instagram title and hashtags using Claude Haiku.
+    """Generate a YouTube/Instagram title, description, and hashtags using Claude Haiku.
 
     Calls Anthropic Haiku (temperature 0.85) with the content text and
-    returns a merged dict with AI-suggested title and deduplicated hashtags
-    (Claude's suggestions + niche_hashtags from channels.yaml).
+    returns a merged dict with AI-suggested title, description, and
+    deduplicated hashtags (Claude's suggestions + niche_hashtags from
+    channels.yaml).
 
     Args:
         content_text:   The story body, tweet text, or video script excerpt.
@@ -469,22 +484,25 @@ def generate_upload_metadata(
 
     Returns:
         Dict with:
-            "title"    : str -- compelling title under 100 chars, no clickbait
-            "hashtags" : list[str] -- deduplicated tags (no # prefix)
+            "title"       : str -- compelling title under 100 chars, no clickbait
+            "description" : str -- 1-2 sentence video description
+            "hashtags"    : list[str] -- deduplicated tags (no # prefix)
     """
     system_prompt = (
         "You are a social media expert specializing in YouTube Shorts and Instagram Reels. "
         "Generate upload metadata as JSON with this exact schema:\n"
-        '{"title": "...", "hashtags": ["tag1", "tag2", "tag3"]}\n\n'
+        '{"title": "...", "description": "...", "hashtags": ["tag1", "tag2", "tag3"]}\n\n'
         "Rules:\n"
         "- title: compelling, under 100 chars, no clickbait, no ALL CAPS\n"
+        "- description: 1-2 sentences that hook viewers and summarize the content, "
+        "no hashtags here\n"
         "- hashtags: 2-3 content-specific tags, NO # prefix, lowercase\n"
         "- Output valid JSON only, no explanation"
     )
     user_prompt = (
         f"Format: {format_type}\n\n"
         f"Content:\n{content_text[:1000]}\n\n"
-        "Generate title and hashtags for this content."
+        "Generate title, description, and hashtags for this content."
     )
 
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -500,9 +518,10 @@ def generate_upload_metadata(
         ai_result = json.loads(raw_json)
     except Exception as exc:
         logger.error("generate_upload_metadata: Claude call failed: %s", exc)
-        ai_result = {"title": content_text[:80], "hashtags": []}
+        ai_result = {"title": content_text[:80], "description": "", "hashtags": []}
 
     title = ai_result.get("title", content_text[:80])
+    description = ai_result.get("description", "")
     ai_hashtags = ai_result.get("hashtags", [])
 
     # Merge and deduplicate (preserve order: AI tags first, then niche)
@@ -515,6 +534,41 @@ def generate_upload_metadata(
             merged.append(normalized)
 
     logger.info(
-        "generate_upload_metadata: title=%r hashtags=%s", title, merged
+        "generate_upload_metadata: title=%r description=%r hashtags=%s",
+        title, description, merged,
     )
-    return {"title": title, "hashtags": merged}
+    return {"title": title, "description": description, "hashtags": merged}
+
+
+def save_metadata_file(
+    video_path: str,
+    metadata: dict,
+) -> str:
+    """Save upload metadata as a text file next to the video for manual uploads.
+
+    Creates a .txt file with the same stem as the video containing the title,
+    description, and hashtags in a copy-pasteable format.
+
+    Args:
+        video_path: Path to the generated MP4.
+        metadata:   Dict from generate_upload_metadata (title, description, hashtags).
+
+    Returns:
+        Absolute path of the written metadata file.
+    """
+    video = Path(video_path)
+    meta_path = video.with_suffix(".txt")
+
+    hashtag_str = " ".join(f"#{t}" for t in metadata.get("hashtags", []))
+
+    lines = [
+        metadata.get("title", ""),
+        "",
+        metadata.get("description", ""),
+        "",
+        hashtag_str,
+    ]
+
+    meta_path.write_text("\n".join(lines), encoding="utf-8")
+    logger.info("Saved upload metadata → %s", meta_path)
+    return str(meta_path)
