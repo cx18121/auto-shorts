@@ -422,7 +422,7 @@ def _generate_storytelling_from_backlog(
                     mark_story_used(conn, row["id"])
                     conn.commit()
                 else:
-                    logger.info("--keep-backlog: skipping mark_story_used for row %d", row["id"])
+                    logger.info("--keep-backlog: skipping mark_story_used for row %s", row["id"])
                 produced.append(video_path)
                 logger.info("Backlog story %d done → %s", len(produced), video_path)
 

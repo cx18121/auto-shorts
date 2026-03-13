@@ -24,7 +24,7 @@ _TEMPERATURE = 0.85
 _MAX_TOKENS  = 1024
 _MAX_RETRIES = 2
 
-_REQUIRED_KEYS = {"title", "hook_line", "story_text", "overlay_phrases", "estimated_duration_seconds"}
+_REQUIRED_KEYS = {"title", "hook_line", "story_text", "estimated_duration_seconds"}
 
 # ---------------------------------------------------------------------------
 # Niche tone directives (used when no style profile is available)
@@ -65,7 +65,6 @@ OUTPUT FORMAT — return exactly this JSON structure:
   "title": "video title under 60 chars",
   "hook_line": "the opening sentence that grabs attention",
   "story_text": "the full narration text — written for TTS, natural speech rhythm, no markdown",
-  "overlay_phrases": ["5–15 short key phrases that can be shown as text overlays"],
   "estimated_duration_seconds": integer
 }}"""
 
@@ -105,15 +104,12 @@ edit:, update:, OP, [removed], [deleted], "thanks for the awards", upvotes, down
 4. If the post opens strongly, keep that opening as the hook. If not, add a strong hook sentence.
 5. If the post is too long, condense it — remove tangents, tighten sentences, keep the full arc
 6. Generate a YouTube-optimised video title under 60 characters (NOT the Reddit post title)
-7. overlay_phrases: pick 5–12 short punchy phrases to display as text overlays — \
-   each phrase MUST be copied VERBATIM from story_text, do not paraphrase
 
 OUTPUT FORMAT — return exactly this JSON:
 {{
   "title": "YouTube title under 60 chars",
   "hook_line": "the opening sentence",
   "story_text": "full narration — natural speech, no markdown, {word_min}–{word_max} words",
-  "overlay_phrases": ["phrase from story_text", "another phrase from story_text"],
   "estimated_duration_seconds": integer
 }}"""
 
@@ -125,8 +121,7 @@ def generate_story(profile: dict[str, Any]) -> dict[str, Any]:
         profile: Style profile dict (loaded from JSON file).
 
     Returns:
-        Story dict with keys: title, hook_line, story_text, overlay_phrases,
-        estimated_duration_seconds.
+        Story dict with keys: title, hook_line, story_text, estimated_duration_seconds.
 
     Raises:
         RuntimeError: If valid JSON is not produced after MAX_RETRIES attempts.
@@ -198,8 +193,7 @@ def adapt_reddit_post(
         profile:      Style profile dict if one exists; overrides niche defaults entirely.
 
     Returns:
-        Script dict with keys: title, hook_line, story_text, overlay_phrases,
-        estimated_duration_seconds.
+        Script dict with keys: title, hook_line, story_text, estimated_duration_seconds.
 
     Raises:
         ValueError:   If the post body is fewer than 50 words.
@@ -331,10 +325,3 @@ def _validate(story: dict[str, Any]) -> None:
         raise ValueError(f"Story JSON missing keys: {missing}")
     if not story.get("story_text"):
         raise ValueError("story_text is empty")
-    # Each overlay phrase must be an exact substring of story_text
-    story_text = story["story_text"]
-    for phrase in story.get("overlay_phrases", []):
-        if phrase and phrase not in story_text:
-            raise ValueError(
-                f"overlay_phrase not a substring of story_text: {phrase!r}"
-            )
