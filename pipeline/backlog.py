@@ -324,11 +324,11 @@ def get_approved_tweets(conn: sqlite3.Connection, channel: str) -> list:
 
 
 def get_pending_stories(conn: sqlite3.Connection, channel: str) -> list:
-    """Return pending stories for *channel*, ordered by score DESC."""
+    """Return pending stories for *channel*, newest scraped batch first, then by score DESC within each batch."""
     return conn.execute(
         "SELECT * FROM backlog_stories"
         " WHERE channel=? AND status='pending'"
-        " ORDER BY score DESC",
+        " ORDER BY DATE(scraped_at) DESC, score DESC",
         (channel,),
     ).fetchall()
 
