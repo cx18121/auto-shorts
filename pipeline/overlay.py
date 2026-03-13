@@ -161,7 +161,7 @@ ScaledBorderAndShadow: yes
 # Komika Axis is a bold comic-style font — punchy subtitle look.
 # Outline=4 gives a fat black border that puffs the letters out.
 # Shadow=2 with a coloured BackColour adds a warm offset shadow for depth.
-# Alignment 5 = numpad centre — centres on the 1080×1920 canvas.
+# Alignment 2 = numpad bottom-centre — places subtitles in the lower portion of the 1080×1920 canvas.
 _ASS_STYLES = (
     "[V4+ Styles]\n"
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
@@ -173,7 +173,7 @@ _ASS_STYLES = (
     f"-1,0,0,0,"        # Bold=-1 (on), no italic/underline/strikeout
     f"100,100,1,0,"     # ScaleX, ScaleY, Spacing=1 (slight letter spacing), Angle
     f"1,4,2,"           # BorderStyle=1, Outline=4px (fat border), Shadow=2px
-    f"5,40,40,0,1\n"    # Alignment=5 (centre), MarginL/R=40, MarginV=0, Encoding=1
+    f"2,40,40,150,1\n"  # Alignment=2 (bottom-centre), MarginL/R=40, MarginV=150, Encoding=1
     "\n"
 )
 
