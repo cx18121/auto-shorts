@@ -128,9 +128,10 @@ None yet.
 | 7 | Add "year" to --window choices for scrape command | 2026-03-13 | 1d79ac9 | [7-add-a-setting-for-window-to-be-year](./quick/7-add-a-setting-for-window-to-be-year/) |
 | 8 | Sort backlog by score (likes + retweets*3) in review command | 2026-03-13 | 29b874c | [8-sort-backlog-by-score-in-review-command](./quick/8-sort-backlog-by-score-in-review-command/) |
 | 9 | Sort new backlog stories by scrape date (newest batch first, then score DESC) | 2026-03-13 | 9977039 | [9-sort-new-backlog-stories-together-with-e](./quick/9-sort-new-backlog-stories-together-with-e/) |
+| 10 | Fix Twitter scraper hanging on x.com/home with commit navigation + login-wall detection | 2026-03-13 | c942f9a | [10-fix-twitter-scraper-getting-stuck-after-](./quick/10-fix-twitter-scraper-getting-stuck-after-/) |
 
 ## Session Continuity
 
 Last session: 2026-03-13T00:00:00Z
-Stopped at: Completed quick task 9: Sort new backlog stories by scrape date (newest batch first)
+Stopped at: Completed quick task 10: Fix Twitter scraper hanging on x.com/home
 Resume file: None
