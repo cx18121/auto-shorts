@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-11)
 Phase: 1 of 4 (Niche Config + Multi-Channel Foundation)
 Plan: 0 of TBD in current phase
 Status: Ready to plan
-Last activity: 2026-03-13 - Completed quick task 7: Add "year" to --window choices for scrape command
+Last activity: 2026-03-13 - Completed quick task 8: Sort backlog by score in review command
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -126,9 +126,10 @@ None yet.
 | 5 | Make Reddit post borders rounded (transparent corners) | 2026-03-12 | 8d29429 | [5-make-borders-rounded-for-reddit-post-by-](./quick/5-make-borders-rounded-for-reddit-post-by-/) |
 | 6 | Add --publish-at flag to run-cycle for scheduled YouTube uploads | 2026-03-12 | 0d788cb | [6-add-scheduled-publish-time-to-run-cycle-](./quick/6-add-scheduled-publish-time-to-run-cycle-/) |
 | 7 | Add "year" to --window choices for scrape command | 2026-03-13 | 1d79ac9 | [7-add-a-setting-for-window-to-be-year](./quick/7-add-a-setting-for-window-to-be-year/) |
+| 8 | Sort backlog by score (likes + retweets*3) in review command | 2026-03-13 | 29b874c | [8-sort-backlog-by-score-in-review-command](./quick/8-sort-backlog-by-score-in-review-command/) |
 
 ## Session Continuity
 
 Last session: 2026-03-12T22:00:00Z
-Stopped at: Completed quick task 6: Add scheduled publish time to run-cycle
+Stopped at: Completed quick task 8: Sort backlog by score in review command
 Resume file: None
