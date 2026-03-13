@@ -136,7 +136,7 @@ def _render_html(html_content: str, workdir: Path) -> Path:
 
         container = page.query_selector(".post-container")
         if container:
-            container.screenshot(path=str(tmp_png))
+            container.screenshot(path=str(tmp_png), omit_background=True)
         else:
             page.screenshot(path=str(tmp_png), full_page=True)
 
