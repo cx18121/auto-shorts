@@ -124,9 +124,10 @@ None yet.
 | 3 | Install Komika Axis font and wire it into FFmpeg fontsdir, lower subtitle position | 2026-03-13 | ace8c5e | [3-install-komika-axis-font-and-wire-it-int](./quick/3-install-komika-axis-font-and-wire-it-int/) |
 | 4 | Move subtitles to 40% from bottom, thicker text border | 2026-03-13 | 4e9a4b2 | [4-move-subtitles-to-40-from-bottom-thicker](./quick/4-move-subtitles-to-40-from-bottom-thicker/) |
 | 5 | Make Reddit post borders rounded (transparent corners) | 2026-03-12 | 8d29429 | [5-make-borders-rounded-for-reddit-post-by-](./quick/5-make-borders-rounded-for-reddit-post-by-/) |
+| 6 | Add --publish-at flag to run-cycle for scheduled YouTube uploads | 2026-03-12 | 0d788cb | [6-add-scheduled-publish-time-to-run-cycle-](./quick/6-add-scheduled-publish-time-to-run-cycle-/) |
 
 ## Session Continuity
 
-Last session: 2026-03-12T21:32:47Z
-Stopped at: Completed quick task 5: Make Reddit post borders rounded with transparent corners
+Last session: 2026-03-12T22:00:00Z
+Stopped at: Completed quick task 6: Add scheduled publish time to run-cycle
 Resume file: None
