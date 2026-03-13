@@ -1,21 +1,22 @@
 """
-pipeline/reddit_scraper.py — Reddit scraper using PRAW.
+pipeline/reddit_scraper.py — Reddit scraper using public JSON endpoints.
 
-Fetches top posts from configured subreddits, filters invalid content,
-and provides results for downstream quality filtering and backlog insertion.
+Fetches top posts from configured subreddits via reddit.com/.json,
+filters invalid content, and provides results for downstream quality
+filtering and backlog insertion. No API credentials required.
 
 Public API:
-    scrape_subreddit_top(reddit, subreddit_name, time_filter, limit) -> list[dict]
-    scrape_channel_subreddits(channel_cfg, reddit, time_filter, limit) -> list[dict]
+    scrape_subreddit_top(subreddit_name, time_filter, limit) -> list[dict]
+    scrape_channel_subreddits(channel_cfg, time_filter, limit) -> list[dict]
     scrape_and_store_reddit(channel_cfg, window, limit) -> dict
-
-Note: config, praw, analysis.db are imported lazily inside scrape_and_store_reddit
-to avoid triggering channels.yaml loading at import time (for testability).
 """
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
+
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -30,54 +31,86 @@ WINDOW_MAP: dict[str, str] = {
     "month": "month",
 }
 
+_USER_AGENT = "auto-shorts/1.0 (reddit public JSON scraper)"
+_REQUEST_DELAY = 2.0  # seconds between requests to avoid rate limiting
+
 
 # ---------------------------------------------------------------------------
 # Core scraping functions
 # ---------------------------------------------------------------------------
 
 def scrape_subreddit_top(
-    reddit: Any,
     subreddit_name: str,
     time_filter: str = "day",
     limit: int = 100,
 ) -> list[dict]:
-    """Fetch top posts from a single subreddit and return as list of dicts.
+    """Fetch top posts from a single subreddit via public JSON and return as list of dicts.
 
     Filters out link posts (is_self=False) and posts with invalid selftext
     (empty, [removed], or [deleted]).
 
     Args:
-        reddit:         PRAW Reddit instance (read-only).
         subreddit_name: Subreddit name without the r/ prefix.
-        time_filter:    PRAW time_filter — "day", "week", "month", "year", "all".
-        limit:          Maximum number of posts to fetch from Reddit API.
+        time_filter:    Time filter — "day", "week", "month", "year", "all".
+        limit:          Maximum number of posts to fetch.
 
     Returns:
         List of post dicts with keys: id, title, body, score, word_count,
         subreddit, url. Returns [] on any exception.
     """
     try:
-        submissions = reddit.subreddit(subreddit_name).top(
-            time_filter=time_filter,
-            limit=limit,
-        )
         results: list[dict] = []
-        for post in submissions:
-            # Skip link posts — they have no meaningful body text
-            if not post.is_self:
-                continue
-            # Skip posts with invalid selftext
-            if post.selftext in INVALID_SELFTEXT:
-                continue
-            results.append({
-                "id": post.id,
-                "title": post.title,
-                "body": post.selftext,
-                "score": post.score,
-                "word_count": len(post.selftext.split()),
-                "subreddit": subreddit_name,
-                "url": f"https://reddit.com{post.permalink}",
-            })
+        after: str | None = None
+        fetched = 0
+
+        while fetched < limit:
+            batch_size = min(100, limit - fetched)
+            url = f"https://www.reddit.com/r/{subreddit_name}/top.json"
+            params: dict[str, Any] = {
+                "t": time_filter,
+                "limit": batch_size,
+            }
+            if after:
+                params["after"] = after
+
+            resp = requests.get(
+                url,
+                params=params,
+                headers={"User-Agent": _USER_AGENT},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+            children = data.get("data", {}).get("children", [])
+            if not children:
+                break
+
+            for child in children:
+                post = child.get("data", {})
+                if not post.get("is_self", False):
+                    continue
+                selftext = post.get("selftext", "")
+                if selftext in INVALID_SELFTEXT:
+                    continue
+                results.append({
+                    "id": post["id"],
+                    "title": post.get("title", ""),
+                    "body": selftext,
+                    "score": post.get("score", 0),
+                    "word_count": len(selftext.split()),
+                    "subreddit": subreddit_name,
+                    "url": f"https://reddit.com{post.get('permalink', '')}",
+                })
+
+            after = data.get("data", {}).get("after")
+            fetched += len(children)
+
+            if not after:
+                break
+
+            time.sleep(_REQUEST_DELAY)
+
         logger.info("Scraped %d posts from r/%s", len(results), subreddit_name)
         return results
     except Exception:
@@ -91,7 +124,6 @@ def scrape_subreddit_top(
 
 def scrape_channel_subreddits(
     channel_cfg: Any,
-    reddit: Any,
     time_filter: str = "day",
     limit: int = 100,
 ) -> list[dict]:
@@ -102,8 +134,7 @@ def scrape_channel_subreddits(
 
     Args:
         channel_cfg: Channel configuration from channels.yaml.
-        reddit:      PRAW Reddit instance (read-only).
-        time_filter: PRAW time_filter string.
+        time_filter: Time filter string.
         limit:       Maximum posts per subreddit.
 
     Returns:
@@ -114,7 +145,7 @@ def scrape_channel_subreddits(
 
     for subreddit_name in channel_cfg.subreddits:
         try:
-            posts = scrape_subreddit_top(reddit, subreddit_name, time_filter, limit)
+            posts = scrape_subreddit_top(subreddit_name, time_filter, limit)
             for post in posts:
                 if post["id"] not in seen_ids:
                     seen_ids.add(post["id"])
@@ -125,6 +156,7 @@ def scrape_channel_subreddits(
                 subreddit_name,
                 exc_info=True,
             )
+        time.sleep(_REQUEST_DELAY)
 
     return all_posts
 
@@ -136,8 +168,8 @@ def scrape_and_store_reddit(
 ) -> dict:
     """Scrape Reddit posts for a channel, quality-filter, and insert passing posts into backlog.
 
-    Creates a PRAW read-only Reddit instance using credentials from config.py.
-    Maps the window string to a PRAW time_filter via WINDOW_MAP.
+    Uses Reddit's public JSON endpoints — no API credentials needed.
+    Maps the window string to a time_filter via WINDOW_MAP.
 
     Args:
         channel_cfg: Channel configuration from channels.yaml (ChannelConfig dataclass).
@@ -147,23 +179,13 @@ def scrape_and_store_reddit(
     Returns:
         Summary dict: {"scraped": int, "passed": int, "inserted": int, "duplicates": int}
     """
-    # Lazy imports to avoid triggering channels.yaml loading at import time
-    import praw as _praw
-    import config as _config
     from analysis.db import get_connection
     from pipeline.backlog import insert_story
     from pipeline.quality_filter import passes_story_quality
 
-    reddit = _praw.Reddit(
-        client_id=_config.REDDIT_CLIENT_ID,
-        client_secret=_config.REDDIT_CLIENT_SECRET,
-        user_agent=_config.REDDIT_USER_AGENT,
-    )
-    reddit.read_only = True
-
     time_filter = WINDOW_MAP.get(window, "day")
 
-    posts = scrape_channel_subreddits(channel_cfg, reddit, time_filter, limit)
+    posts = scrape_channel_subreddits(channel_cfg, time_filter, limit)
 
     scraped = len(posts)
     passed = 0

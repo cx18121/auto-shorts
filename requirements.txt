@@ -9,6 +9,5 @@ python-dotenv
 requests
 twscrape
 playwright
-praw>=7.7
 pytest>=7.0
 pyyaml
