@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-11)
 Phase: 1 of 4 (Niche Config + Multi-Channel Foundation)
 Plan: 0 of TBD in current phase
 Status: Ready to plan
-Last activity: 2026-03-13 - Completed quick task 6: Add scheduled publish time to run-cycle command
+Last activity: 2026-03-13 - Completed quick task 7: Add "year" to --window choices for scrape command
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -125,6 +125,7 @@ None yet.
 | 4 | Move subtitles to 40% from bottom, thicker text border | 2026-03-13 | 4e9a4b2 | [4-move-subtitles-to-40-from-bottom-thicker](./quick/4-move-subtitles-to-40-from-bottom-thicker/) |
 | 5 | Make Reddit post borders rounded (transparent corners) | 2026-03-12 | 8d29429 | [5-make-borders-rounded-for-reddit-post-by-](./quick/5-make-borders-rounded-for-reddit-post-by-/) |
 | 6 | Add --publish-at flag to run-cycle for scheduled YouTube uploads | 2026-03-12 | 0d788cb | [6-add-scheduled-publish-time-to-run-cycle-](./quick/6-add-scheduled-publish-time-to-run-cycle-/) |
+| 7 | Add "year" to --window choices for scrape command | 2026-03-13 | 1d79ac9 | [7-add-a-setting-for-window-to-be-year](./quick/7-add-a-setting-for-window-to-be-year/) |
 
 ## Session Continuity
 
