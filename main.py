@@ -121,11 +121,19 @@ def main() -> None:
     )
 
     # --- run-cycle ---
-    sub.add_parser(
+    p_run = sub.add_parser(
         "run-cycle",
         help=(
             "Pull the highest-scored approved item from the backlog, generate a video, "
             "upload to YouTube and Instagram, mark item used, and log upload records."
+        ),
+    )
+    p_run.add_argument(
+        "--publish-at",
+        default=None,
+        help=(
+            "ISO 8601 datetime to schedule YouTube publish (e.g. 2026-03-13T09:00:00Z). "
+            "Video uploads as private and goes public at this time. Instagram upload is skipped."
         ),
     )
 
@@ -293,6 +301,7 @@ def _generate_storytelling(
             story["story_text"], background, no_audio=no_audio,
         )
         if video_path:
+            _save_video_metadata(video_path, story["story_text"], "storytelling")
             produced.append(video_path)
             logger.info("Story %d/%d done → %s", i + 1, count, video_path)
 
@@ -418,6 +427,10 @@ def _generate_storytelling_from_backlog(
                 no_audio=no_audio,
             )
             if video_path:
+                _save_video_metadata(
+                    video_path, story["story_text"], "storytelling",
+                    channel_cfg.hashtags if channel_cfg else [],
+                )
                 if not keep_backlog:
                     mark_story_used(conn, row["id"])
                     conn.commit()
@@ -429,6 +442,23 @@ def _generate_storytelling_from_backlog(
         return produced
     finally:
         conn.close()
+
+
+def _save_video_metadata(
+    video_path: str,
+    content_text: str,
+    format_type: str,
+    niche_hashtags: list[str] | None = None,
+) -> None:
+    """Generate title/description/hashtags and save a .txt file next to the video."""
+    from pipeline.upload import generate_upload_metadata, save_metadata_file
+    try:
+        metadata = generate_upload_metadata(
+            content_text, niche_hashtags or [], format_type,
+        )
+        save_metadata_file(video_path, metadata)
+    except Exception as e:
+        logger.warning("Failed to generate upload metadata: %s", e)
 
 
 _SILENT_DURATION = 10.0  # seconds of silent audio for --no-audio testing
@@ -559,6 +589,7 @@ def _generate_tweets(
             tweet = tweet_list[0]
             video = _run_tweet_pipeline(tweet, render_tweet, assemble_tweet_video)
             if video:
+                _save_video_metadata(video, tweet["tweet_text"], "tweets")
                 produced.append(video)
     else:
         for i in range(count):
@@ -576,6 +607,7 @@ def _generate_tweets(
 
             video = _run_tweet_pipeline(tweet, render_tweet, assemble_tweet_video)
             if video:
+                _save_video_metadata(video, tweet["tweet_text"], "tweets")
                 produced.append(video)
                 logger.info("Tweet %d/%d done → %s", i + 1, count, video)
 
@@ -649,6 +681,7 @@ def _scrape_tweets(count: int, min_likes: int) -> list[str]:
                 output_path=str(workdir / "final.mp4"),
                 duration_seconds=tts["duration_seconds"],
             )
+            _save_video_metadata(out, tweet["text"], "tweets")
             produced.append(out)
             logger.info("Done → %s", out)
         except Exception as e:
@@ -956,7 +989,7 @@ def cmd_backlog_status(channel_cfg: "config.ChannelConfig | None" = None) -> Non
         conn.close()
 
 
-def cmd_run_cycle(channel_cfg: "config.ChannelConfig") -> None:
+def cmd_run_cycle(channel_cfg: "config.ChannelConfig", publish_at: str | None = None) -> None:
     """Orchestrate one posting cycle for a channel.
 
     Flow:
@@ -966,13 +999,16 @@ def cmd_run_cycle(channel_cfg: "config.ChannelConfig") -> None:
       4. Generate a video from the item.
       5. Generate upload metadata (title + hashtags) via Claude Haiku.
       6. Upload to YouTube (skip if token missing).
-      7. Upload to Instagram (skip if user_id empty or token missing).
+      7. Upload to Instagram (skip if user_id empty or token missing, or if publish_at is set).
       8. Mark item as used in the DB.
       9. Log summary.
 
     Args:
         channel_cfg: Channel configuration with enabled, format, hashtags,
                      youtube_client_id/secret, instagram_user_id, and slug.
+        publish_at:  Optional ISO 8601 datetime string (e.g. "2026-03-13T09:00:00Z").
+                     When set, YouTube video is uploaded as private and scheduled to go
+                     public at the specified time. Instagram upload is skipped.
     """
     import os
 
@@ -989,7 +1025,8 @@ def cmd_run_cycle(channel_cfg: "config.ChannelConfig") -> None:
     )
     from pipeline.upload import (
         upload_to_youtube, upload_to_instagram,
-        generate_upload_metadata, init_upload_table, log_upload,
+        generate_upload_metadata, save_metadata_file,
+        init_upload_table, log_upload,
         refresh_instagram_token_if_needed,
     )
 
@@ -1089,7 +1126,12 @@ def cmd_run_cycle(channel_cfg: "config.ChannelConfig") -> None:
         metadata = generate_upload_metadata(content_text, channel_cfg.hashtags, fmt)
         title = metadata["title"]
         hashtags = metadata["hashtags"]
-        description = f"{title}\n\n#{'  #'.join(hashtags)}" if hashtags else title
+        desc_body = metadata.get("description", "")
+        hashtag_str = " ".join(f"#{t}" for t in hashtags) if hashtags else ""
+        description = "\n\n".join(filter(None, [desc_body, hashtag_str]))
+
+        # Save metadata file next to video for manual uploads
+        save_metadata_file(video_path, metadata)
 
         # ---------------------------------------------------------------
         # Step 4: Upload to YouTube
@@ -1111,6 +1153,7 @@ def cmd_run_cycle(channel_cfg: "config.ChannelConfig") -> None:
                     yt_token_path,
                     channel_cfg.youtube_client_id,
                     channel_cfg.youtube_client_secret,
+                    publish_at=publish_at,
                 )
                 logger.info("run-cycle: YouTube upload success video_id=%s", video_id)
                 log_upload(conn, slug, "youtube", video_id, title, "success")
@@ -1126,7 +1169,10 @@ def cmd_run_cycle(channel_cfg: "config.ChannelConfig") -> None:
         ig_token_path = Path(config.CHANNELS_DIR) / slug / "instagram_token.json"
         ig_status = "skipped"
 
-        if not channel_cfg.instagram_user_id or not ig_token_path.exists():
+        if publish_at:
+            logger.info("run-cycle: --publish-at set — skipping Instagram upload (not supported)")
+            ig_status = "skipped"
+        elif not channel_cfg.instagram_user_id or not ig_token_path.exists():
             logger.info("Instagram not configured for %s — skipping", slug)
         else:
             public_base_url = os.environ.get("INSTAGRAM_PUBLIC_BASE_URL", "")
@@ -1250,7 +1296,7 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg: "config.ChannelConf
     elif args.command == "setup-instagram":
         cmd_setup_instagram(channel_cfg, getattr(args, "token", None))
     elif args.command == "run-cycle":
-        cmd_run_cycle(channel_cfg)
+        cmd_run_cycle(channel_cfg, publish_at=getattr(args, "publish_at", None))
     elif args.command == "upload-history":
         cmd_upload_history(channel_cfg, getattr(args, "limit", 20))
 
