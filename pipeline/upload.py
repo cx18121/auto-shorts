@@ -518,7 +518,22 @@ def generate_upload_metadata(
         ai_result = json.loads(raw_json)
     except Exception as exc:
         logger.error("generate_upload_metadata: Claude call failed: %s", exc)
-        ai_result = {"title": content_text[:80], "description": "", "hashtags": []}
+        # Fallback title: truncate at last word boundary within 80 chars
+        _t = content_text.strip()
+        if len(_t) > 80:
+            _t = _t[:80]
+            last_space = _t.rfind(" ")
+            if last_space > 40:
+                _t = _t[:last_space]
+            _t = _t.rstrip(",-") + "..."
+        # Fallback description: first 2 sentences, up to 200 chars
+        _sentences = [s.strip() for s in content_text.split(". ") if s.strip()]
+        _desc = ". ".join(_sentences[:2])
+        if _desc and not _desc.endswith("."):
+            _desc += "."
+        if len(_desc) > 200:
+            _desc = _desc[:200].rstrip() + "..."
+        ai_result = {"title": _t, "description": _desc, "hashtags": []}
 
     title = ai_result.get("title", content_text[:80])
     description = ai_result.get("description", "")
