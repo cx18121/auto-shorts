@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 04-upload-scheduler 04-03-PLAN.md — Checkpoint approved
-last_updated: "2026-03-12T20:53:52.728Z"
-last_activity: 2026-03-11 — Roadmap created
+stopped_at: "Completed quick task 260315-j8t: Fix empty description in final.txt upload metadata"
+last_updated: "2026-03-15T17:56:31.252Z"
+last_activity: "2026-03-13 - Completed quick task 9: Sort new backlog stories by scrape date (newest batch first)"
 progress:
   total_phases: 4
   completed_phases: 4
@@ -129,9 +129,10 @@ None yet.
 | 8 | Sort backlog by score (likes + retweets*3) in review command | 2026-03-13 | 29b874c | [8-sort-backlog-by-score-in-review-command](./quick/8-sort-backlog-by-score-in-review-command/) |
 | 9 | Sort new backlog stories by scrape date (newest batch first, then score DESC) | 2026-03-13 | 9977039 | [9-sort-new-backlog-stories-together-with-e](./quick/9-sort-new-backlog-stories-together-with-e/) |
 | 10 | Fix Twitter scraper hanging on x.com/home with commit navigation + login-wall detection | 2026-03-13 | c942f9a | [10-fix-twitter-scraper-getting-stuck-after-](./quick/10-fix-twitter-scraper-getting-stuck-after-/) |
+| 11 | Fix empty description in final.txt — fallback uses first 2 sentences of content, title truncates at word boundary | 2026-03-15 | 527c2b2 | [260315-j8t-fix-the-video-description-in-the-txt-fil](./quick/260315-j8t-fix-the-video-description-in-the-txt-fil/) |
 
 ## Session Continuity
 
-Last session: 2026-03-13T00:00:00Z
-Stopped at: Completed quick task 10: Fix Twitter scraper hanging on x.com/home
+Last session: 2026-03-15T17:56:31.125Z
+Stopped at: Completed quick task 260315-j8t: Fix empty description in final.txt upload metadata
 Resume file: None
