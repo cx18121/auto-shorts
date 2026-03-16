@@ -421,11 +421,6 @@ def _generate_storytelling_from_backlog(
 
             video_path = _run_storytelling_pipeline(
                 story["story_text"], background,
-                post_meta={
-                    "title": story.get("title", post["title"]),
-                    "subreddit": post.get("subreddit", "stories"),
-                    "score": post.get("score", 0),
-                },
                 no_audio=no_audio,
             )
             if video_path:
@@ -495,12 +490,9 @@ def _generate_silent_audio(output_dir: str) -> dict:
 def _run_storytelling_pipeline(
     story_text: str,
     background: str,
-    post_meta: dict | None = None,
     no_audio: bool = False,
 ) -> str | None:
-    """Run TTS + assembly. If post_meta is provided, uses split-screen layout."""
-    from formats.storytelling.assembler import assemble_split_video
-
+    """Run TTS + assembly. Produces a full-screen gameplay video with subtitles."""
     run_id  = int(time.time())
     workdir = config.OUTPUT_DIR / str(run_id)
     workdir.mkdir(parents=True, exist_ok=True)
@@ -515,51 +507,21 @@ def _run_storytelling_pipeline(
             logger.info("[1/4] TTS…")
             tts = generate_tts(story_text, str(workdir))
 
-        if post_meta:
-            # Split-screen: gameplay background + Reddit post overlay + subtitles
-            from formats.storytelling.reddit_renderer import render_reddit_post
-            logger.info("[2/4] Rendering Reddit post…")
-            post_img = render_reddit_post(
-                story_text=story_text,
-                title=post_meta.get("title", ""),
-                subreddit=post_meta.get("subreddit", "stories"),
-                score=post_meta.get("score", 0),
-                output_path=str(workdir / "reddit_post.png"),
-            )
+        logger.info("[2/4] Subtitles…")
+        subs = generate_ass(
+            tts["timestamps_path"],
+            str(workdir / "subtitles.ass"),
+            speed_factor=AUDIO_SPEED,
+        )
 
-            logger.info("[3/4] Subtitles…")
-            subs = generate_ass(
-                tts["timestamps_path"],
-                str(workdir / "subtitles.ass"),
-                speed_factor=AUDIO_SPEED,
-            )
-
-            logger.info("[4/4] Assembling split-screen…")
-            out = assemble_split_video(
-                background_path=background,
-                audio_path=tts["audio_path"],
-                post_image_path=post_img,
-                subtitles_path=subs,
-                output_path=str(workdir / "final.mp4"),
-                duration_seconds=tts["duration_seconds"],
-            )
-        else:
-            # Original full-screen with subtitles
-            logger.info("[2/4] Subtitles…")
-            subs = generate_ass(
-                tts["timestamps_path"],
-                str(workdir / "subtitles.ass"),
-                speed_factor=AUDIO_SPEED,
-            )
-
-            logger.info("[3/4] Assembling…")
-            out = assemble_video(
-                background_path=background,
-                audio_path=tts["audio_path"],
-                subtitles_path=subs,
-                output_path=str(workdir / "final.mp4"),
-                duration_seconds=tts["duration_seconds"],
-            )
+        logger.info("[3/4] Assembling…")
+        out = assemble_video(
+            background_path=background,
+            audio_path=tts["audio_path"],
+            subtitles_path=subs,
+            output_path=str(workdir / "final.mp4"),
+            duration_seconds=tts["duration_seconds"],
+        )
         return out
     except Exception as e:
         logger.error("Pipeline failed: %s", e)
@@ -1103,11 +1065,6 @@ def cmd_run_cycle(channel_cfg: "config.ChannelConfig", publish_at: str | None = 
             background = _pick_background()
             video_path = _run_storytelling_pipeline(
                 story["story_text"], background,
-                post_meta={
-                    "title": story.get("title", post["title"]),
-                    "subreddit": post.get("subreddit", "stories"),
-                    "score": post.get("score", 0),
-                },
             )
             content_text = story["story_text"]
 
