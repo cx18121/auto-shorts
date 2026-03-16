@@ -7,11 +7,12 @@ Supports two layouts:
 
 Public API:
     assemble_video(background_path, audio_path, subtitles_path, output_path) -> str
-    assemble_split_video(background_path, audio_path, post_image_path, output_path, subtitles_path) -> str
+    assemble_split_video(background_path, audio_path, post_image_path, output_path, subtitles_path=None) -> str
 """
 
 import json
 import logging
+import random
 import subprocess
 from pathlib import Path
 
@@ -22,14 +23,29 @@ _FONTS_DIR = str(Path(__file__).resolve().parent.parent.parent / "assets" / "fon
 
 # FFmpeg encode settings
 _VIDEO_CODEC = "libx264"
-_PRESET      = "fast"
-_CRF         = "23"          # quality (lower = better; 23 is a good default)
+_PRESET      = "medium"
+_CRF         = "18"          # quality (lower = better; 18 = visually lossless)
 _AUDIO_CODEC = "aac"
 _AUDIO_BR    = "192k"
 
 # Audio processing: speed up narration slightly and boost volume
-AUDIO_SPEED  = 1.15          # 15% faster playback
+AUDIO_SPEED  = 1.3           # 30% faster playback
 _AUDIO_VOLUME = "1.5"        # 50% volume boost
+
+# Absolute path to the music directory
+_MUSIC_DIR = Path(__file__).resolve().parent.parent.parent / "assets" / "music"
+
+
+def _pick_music_file() -> Path | None:
+    """Return a random music file from assets/music/, or None if none exist."""
+    candidates = (
+        list(_MUSIC_DIR.glob("*.mp3"))
+        + list(_MUSIC_DIR.glob("*.wav"))
+        + list(_MUSIC_DIR.glob("*.m4a"))
+    )
+    if not candidates:
+        return None
+    return random.choice(candidates)
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +97,11 @@ def assemble_video(
         bg.name, aud.name, subs.name, duration_seconds,
     )
 
-    cmd = _build_ffmpeg_cmd(bg, aud, subs, out, duration_seconds)
+    music = _pick_music_file()
+    if music is None:
+        logger.warning("No music files in assets/music/ — skipping background music")
+
+    cmd = _build_ffmpeg_cmd(bg, aud, subs, out, duration_seconds, music_path=music)
     logger.info("FFmpeg command:\n  %s", " ".join(cmd))
 
     _run_ffmpeg(cmd)
@@ -101,6 +121,7 @@ def _build_ffmpeg_cmd(
     subs: Path,
     output: Path,
     duration: float,
+    music_path: Path | None = None,
 ) -> list[str]:
     """Build the FFmpeg argument list.
 
@@ -110,34 +131,66 @@ def _build_ffmpeg_cmd(
         ass={path}        — burn in subtitles
 
     The background is stream-looped so shorter clips can cover any duration.
+    When music_path is provided, mixes narration + music via filter_complex.
     """
     # Escape the subtitle path for use inside an FFmpeg filter string.
     # On Linux the main hazards are backslashes and colons.
     ass_escaped = _escape_filter_path(str(subs))
     fonts_escaped = _escape_filter_path(_FONTS_DIR)
-    vf = f"crop=ih*9/16:ih,scale=1080:1920,ass={ass_escaped}:fontsdir={fonts_escaped}"
-    af = f"atempo={AUDIO_SPEED},volume={_AUDIO_VOLUME}"
     adjusted_duration = duration / AUDIO_SPEED
 
-    return [
-        "ffmpeg",
-        "-y",                          # overwrite output without prompting
-        "-stream_loop", "-1",          # loop background indefinitely
-        "-i", str(bg),                 # input 0: background video
-        "-i", str(audio),              # input 1: narration audio
-        "-t", str(adjusted_duration),  # trim to sped-up duration
-        "-vf", vf,
-        "-af", af,
-        "-map", "0:v",                 # video from background
-        "-map", "1:a",                 # audio from narration
-        "-c:v", _VIDEO_CODEC,
-        "-preset", _PRESET,
-        "-crf", _CRF,
-        "-c:a", _AUDIO_CODEC,
-        "-b:a", _AUDIO_BR,
-        "-movflags", "+faststart",     # optimize for streaming / quick preview
-        str(output),
-    ]
+    if music_path is not None:
+        vf_chain = f"crop=ih*9/16:ih,scale=1080:1920,ass={ass_escaped}:fontsdir={fonts_escaped}"
+        fc = (
+            f"[0:v]{vf_chain}[vout];"
+            f"[1:a]atempo={AUDIO_SPEED},volume={_AUDIO_VOLUME}[narr];"
+            f"[2:a]volume=0.08[mus];"
+            f"[narr][mus]amix=inputs=2:duration=first[aout]"
+        )
+        return [
+            "ffmpeg",
+            "-y",
+            "-stream_loop", "-1",          # loop background indefinitely
+            "-i", str(bg),                 # input 0: background video
+            "-i", str(audio),              # input 1: narration audio
+            "-stream_loop", "-1",          # loop music indefinitely
+            "-i", str(music_path),         # input 2: background music
+            "-t", str(adjusted_duration),  # trim to sped-up duration
+            "-filter_complex", fc,
+            "-map", "[vout]",
+            "-map", "[aout]",
+            "-c:v", _VIDEO_CODEC,
+            "-preset", _PRESET,
+            "-crf", _CRF,
+            "-c:a", _AUDIO_CODEC,
+            "-b:a", _AUDIO_BR,
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            str(output),
+        ]
+    else:
+        vf = f"crop=ih*9/16:ih,scale=1080:1920,ass={ass_escaped}:fontsdir={fonts_escaped}"
+        af = f"atempo={AUDIO_SPEED},volume={_AUDIO_VOLUME}"
+        return [
+            "ffmpeg",
+            "-y",                          # overwrite output without prompting
+            "-stream_loop", "-1",          # loop background indefinitely
+            "-i", str(bg),                 # input 0: background video
+            "-i", str(audio),              # input 1: narration audio
+            "-t", str(adjusted_duration),  # trim to sped-up duration
+            "-vf", vf,
+            "-af", af,
+            "-map", "0:v",                 # video from background
+            "-map", "1:a",                 # audio from narration
+            "-c:v", _VIDEO_CODEC,
+            "-preset", _PRESET,
+            "-crf", _CRF,
+            "-c:a", _AUDIO_CODEC,
+            "-b:a", _AUDIO_BR,
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",     # optimize for streaming / quick preview
+            str(output),
+        ]
 
 
 def _escape_filter_path(path: str) -> str:
@@ -215,7 +268,7 @@ def _run_ffmpeg(cmd: list[str]) -> None:
 _POST_W = 940    # Reddit post width (narrower than canvas — gameplay border visible)
 _POST_H = 960    # Reddit post overlay height (upper portion of 1920 canvas)
 _POST_X = 70     # Horizontal offset to center post: (1080 - 940) / 2
-_POST_Y = 40     # Top padding for post overlay
+_POST_Y = 232    # Top padding for post overlay (~12% from top, avoids mobile camera cutoff)
 _CANVAS_W = 1080
 _CANVAS_H = 1920
 
@@ -270,7 +323,6 @@ def assemble_split_video(
 
     cmd = _build_split_ffmpeg_cmd(bg, aud, post, out, duration_seconds, subs)
     logger.info("FFmpeg command:\n  %s", " ".join(cmd))
-
     _run_ffmpeg(cmd)
 
     size_mb = out.stat().st_size / 1_048_576
@@ -342,6 +394,8 @@ def _build_split_ffmpeg_cmd(
         "-crf", _CRF,
         "-c:a", _AUDIO_CODEC,
         "-b:a", _AUDIO_BR,
+        "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
         str(output),
     ]
+
