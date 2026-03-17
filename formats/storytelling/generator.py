@@ -59,7 +59,7 @@ CONTENT STYLE:
 - Topic categories: {topic_categories}
 - Target word count: {word_min}–{word_max} words
 - Target duration: {dur_min}–{dur_max} seconds
-
+{feedback_block}
 OUTPUT FORMAT — return exactly this JSON structure:
 {{
   "title": "video title under 60 chars",
@@ -91,7 +91,7 @@ STYLE NOTES:
 DURATION AND LENGTH:
 - Target duration: {dur_min}–{dur_max} seconds when read aloud at a natural pace
 - Target word count: {word_min}–{word_max} words
-
+{feedback_block}
 SOURCE POST:
 Title: {post_title}
 Body: {post_body}
@@ -114,11 +114,12 @@ OUTPUT FORMAT — return exactly this JSON:
 }}"""
 
 
-def generate_story(profile: dict[str, Any]) -> dict[str, Any]:
+def generate_story(profile: dict[str, Any], feedback: str = "") -> dict[str, Any]:
     """Generate a single story from a style profile.
 
     Args:
-        profile: Style profile dict (loaded from JSON file).
+        profile:  Style profile dict (loaded from JSON file).
+        feedback: Optional rejection reason from a previous attempt to guide regeneration.
 
     Returns:
         Story dict with keys: title, hook_line, story_text, estimated_duration_seconds.
@@ -127,7 +128,7 @@ def generate_story(profile: dict[str, Any]) -> dict[str, Any]:
         RuntimeError: If valid JSON is not produced after MAX_RETRIES attempts.
     """
     client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
-    prompt = _build_prompt(profile)
+    prompt = _build_prompt(profile, feedback=feedback)
 
     for attempt in range(1, _MAX_RETRIES + 2):
         try:
@@ -184,6 +185,7 @@ def adapt_reddit_post(
     post: dict[str, Any],
     channel_slug: str,
     profile: dict[str, Any] | None = None,
+    feedback: str = "",
 ) -> dict[str, Any]:
     """Adapt a Reddit post into a narration-ready script via Claude Haiku.
 
@@ -191,6 +193,7 @@ def adapt_reddit_post(
         post:         Backlog story row with keys: title, body (and optionally subreddit, score).
         channel_slug: Channel slug — used to look up niche tone defaults when no profile.
         profile:      Style profile dict if one exists; overrides niche defaults entirely.
+        feedback:     Optional rejection reason from a previous attempt to guide regeneration.
 
     Returns:
         Script dict with keys: title, hook_line, story_text, estimated_duration_seconds.
@@ -210,7 +213,7 @@ def adapt_reddit_post(
     truncated_post = {**post, "body": truncated_body}
 
     client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
-    prompt = _build_reddit_prompt(truncated_post, channel_slug, profile)
+    prompt = _build_reddit_prompt(truncated_post, channel_slug, profile, feedback=feedback)
 
     for attempt in range(1, _MAX_RETRIES + 2):
         try:
@@ -249,8 +252,12 @@ def adapt_reddit_post(
 # Internals
 # ---------------------------------------------------------------------------
 
-def _build_prompt(profile: dict[str, Any]) -> str:
+def _build_prompt(profile: dict[str, Any], feedback: str = "") -> str:
     cs = profile.get("content_style", {})
+    feedback_block = (
+        f"\nPREVIOUS ATTEMPT FEEDBACK (fix these issues in your next version):\n{feedback}\n"
+        if feedback else ""
+    )
     return _USER_PROMPT.format(
         guidance=profile.get("generation_prompt_guidance", "Write engaging, viral short stories."),
         hook_patterns=", ".join(cs.get("hook_patterns", [])[:3]),
@@ -261,6 +268,7 @@ def _build_prompt(profile: dict[str, Any]) -> str:
         word_max=cs.get("ideal_word_count", {}).get("max", 180),
         dur_min=cs.get("ideal_duration_seconds", {}).get("min", 30),
         dur_max=cs.get("ideal_duration_seconds", {}).get("max", 60),
+        feedback_block=feedback_block,
     )
 
 
@@ -268,6 +276,7 @@ def _build_reddit_prompt(
     post: dict[str, Any],
     channel_slug: str,
     profile: dict[str, Any] | None,
+    feedback: str = "",
 ) -> str:
     """Build the user message for Reddit post adaptation.
 
@@ -295,6 +304,10 @@ def _build_reddit_prompt(
         word_min, word_max = 100, 160
         vocabulary_notes = ""
 
+    feedback_block = (
+        f"\nPREVIOUS ATTEMPT FEEDBACK (fix these issues in your next version):\n{feedback}\n"
+        if feedback else ""
+    )
     return _REDDIT_USER_PROMPT.format(
         guidance=guidance,
         tone=tone,
@@ -306,6 +319,7 @@ def _build_reddit_prompt(
         vocabulary_notes=vocabulary_notes,
         post_title=post.get("title", ""),
         post_body=post.get("body", ""),
+        feedback_block=feedback_block,
     )
 
 

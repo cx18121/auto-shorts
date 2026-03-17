@@ -181,7 +181,7 @@ def scrape_and_store_reddit(
         Summary dict: {"scraped": int, "passed": int, "inserted": int, "duplicates": int}
     """
     from analysis.db import get_connection
-    from pipeline.backlog import insert_story
+    from pipeline.backlog import insert_story, init_backlog_tables
     from pipeline.quality_filter import passes_story_quality
 
     time_filter = WINDOW_MAP.get(window, "day")
@@ -194,6 +194,7 @@ def scrape_and_store_reddit(
     duplicates = 0
 
     conn = get_connection()
+    init_backlog_tables(conn)
     try:
         for post in posts:
             ok, reason = passes_story_quality(post, channel_cfg.quality)

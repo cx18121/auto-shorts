@@ -1,6 +1,10 @@
 """
 pipeline/overlay.py — Convert word-level timestamps into an ASS subtitle file.
 
+Each caption block shows BLOCK_SIZE words across two lines (LINE_SIZE words per
+line).  One Dialogue event is emitted per word; the active word is highlighted
+yellow while the rest of the block stays white.
+
 Public API:
     generate_ass(timestamps_path, output_path) -> str
 """
@@ -14,16 +18,15 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Phrase grouping parameters
+# Block / caption parameters
 # ---------------------------------------------------------------------------
 
-PHRASE_MIN_WORDS = 1          # don't break on soft punctuation below this
-PHRASE_MAX_WORDS = 2          # hard cap; flush regardless
-PHRASE_MAX_DURATION_MS = 1500 # also flush if a phrase would span > 1.5 s
+BLOCK_SIZE = 6   # total words per caption block  (2 lines × 3)
+LINE_SIZE  = 3   # words per line within the block
 
-# Sentence-ending punctuation → always flush (even with fewer than MIN words)
+# Sentence-ending punctuation → always flush early
 _HARD_BREAK = frozenset(".!?")
-# Clause-ending punctuation → flush only when we have enough words
+# Clause-ending punctuation → flush only when block is at least half full
 _SOFT_BREAK = frozenset(",;:")
 
 
@@ -38,14 +41,14 @@ def generate_ass(
 ) -> str:
     """Build an ASS subtitle file from word-level timestamps.
 
-    Reads the timestamps JSON produced by pipeline.tts, groups the words
-    into subtitle phrases, and writes a styled .ass file ready for FFmpeg.
+    Each caption block spans up to BLOCK_SIZE words displayed on two lines.
+    The currently spoken word is highlighted yellow; the rest are white.
 
     Args:
         timestamps_path: Path to timestamps JSON (list of
             {"word", "start_ms", "end_ms"} objects).
         output_path: Destination path for the .ass file.
-        speed_factor: Audio playback speed multiplier (e.g. 1.15 for 15% faster).
+        speed_factor: Audio playback speed multiplier (e.g. 1.3 for 30% faster).
             Subtitle timestamps are scaled to stay in sync with sped-up audio.
 
     Returns:
@@ -54,20 +57,19 @@ def generate_ass(
     words: list[dict[str, Any]] = json.loads(Path(timestamps_path).read_text())
     logger.info("Loaded %d words from %s", len(words), timestamps_path)
 
-    # Scale timestamps if audio is sped up
     if speed_factor != 1.0:
         for w in words:
             w["start_ms"] = round(w["start_ms"] / speed_factor)
-            w["end_ms"] = round(w["end_ms"] / speed_factor)
+            w["end_ms"]   = round(w["end_ms"]   / speed_factor)
 
-    phrases = _group_into_phrases(words)
+    blocks = _group_into_blocks(words)
     logger.info(
-        "Grouped into %d phrases (avg %.1f words each)",
-        len(phrases),
-        sum(p["word_count"] for p in phrases) / max(len(phrases), 1),
+        "Grouped into %d blocks (avg %.1f words each)",
+        len(blocks),
+        sum(len(b) for b in blocks) / max(len(blocks), 1),
     )
 
-    ass_text = _build_ass(phrases)
+    ass_text = _build_ass(blocks)
 
     out = Path(output_path)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -81,65 +83,51 @@ def generate_ass(
 # Grouping logic
 # ---------------------------------------------------------------------------
 
-def _group_into_phrases(words: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Segment words into subtitle phrases with natural break points.
+def _group_into_blocks(words: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    """Segment words into caption blocks of up to BLOCK_SIZE words.
 
-    Priority order for flushing a phrase:
-      1. Hard punctuation (. ! ?) — always flush, even if short
-      2. Soft punctuation (, ; :) — flush when >= PHRASE_MIN_WORDS
-      3. Reached PHRASE_MAX_WORDS — forced flush
-      4. Phrase duration >= PHRASE_MAX_DURATION_MS — forced flush
+    Blocks flush early on sentence-ending punctuation (.!?) so captions
+    never straddle sentence boundaries.  Clause punctuation flushes when
+    the block is at least half full.
     """
-    phrases: list[dict[str, Any]] = []
+    blocks: list[list[dict[str, Any]]] = []
     buf: list[dict[str, Any]] = []
 
     for word in words:
         buf.append(word)
 
-        # Strip trailing quotes/parens before checking punctuation
-        clean_word = word["word"].rstrip("\"')")
-        tail = clean_word[-1] if clean_word else ""
-
-        duration_ms = buf[-1]["end_ms"] - buf[0]["start_ms"]
+        clean = word["word"].rstrip("\"')")
+        tail  = clean[-1] if clean else ""
 
         is_hard = tail in _HARD_BREAK
-        is_soft = tail in _SOFT_BREAK and len(buf) >= PHRASE_MIN_WORDS
-        is_forced = len(buf) >= PHRASE_MAX_WORDS or duration_ms >= PHRASE_MAX_DURATION_MS
+        is_soft = tail in _SOFT_BREAK and len(buf) >= BLOCK_SIZE // 2
+        is_full = len(buf) >= BLOCK_SIZE
 
-        if is_hard or is_soft or is_forced:
-            phrases.append(_make_phrase(buf))
+        if is_hard or is_soft or is_full:
+            blocks.append(buf)
             buf = []
 
     if buf:
-        phrases.append(_make_phrase(buf))
+        blocks.append(buf)
 
-    return phrases
+    return blocks
 
 
-def _make_phrase(words: list[dict[str, Any]]) -> dict[str, Any]:
-    raw = " ".join(w["word"] for w in words)
-    # All caps, strip punctuation for clean subtitle display
-    # Replace dashes/emdashes with spaces so joined words stay separated
+def _clean_word(raw: str) -> str:
+    """Uppercase and strip punctuation for clean subtitle display."""
     cleaned = re.sub(r"[\u2013\u2014\-]+", " ", raw)
-    display = re.sub(r"[^\w\s]", "", cleaned).upper().strip()
-    return {
-        "text": display,
-        "start_ms": words[0]["start_ms"],
-        "end_ms": words[-1]["end_ms"],
-        "word_count": len(words),
-    }
+    return re.sub(r"[^\w\s]", "", cleaned).upper().strip()
 
 
 # ---------------------------------------------------------------------------
 # ASS file construction
 # ---------------------------------------------------------------------------
 
-# ASS colour format: &HAABBGGRR&
-#   AA = alpha  (0x00 = fully opaque, 0xFF = fully transparent)
-#   BB GG RR = blue, green, red
-_COLOUR_WHITE  = "&H00FFFFFF&"  # opaque white text
-_COLOUR_BLACK  = "&H00000000&"  # opaque black outline
-_COLOUR_SHADOW = "&H00003399&"  # deep orange-red shadow (gives warm bubbly pop)
+# ASS colour format: &HAABBGGRR&  (AA=alpha 00=opaque, then BGR)
+_COLOUR_WHITE  = "&H00FFFFFF&"  # white  — inactive words
+_COLOUR_YELLOW = "&H0000FFFF&"  # yellow — active (highlighted) word
+_COLOUR_BLACK  = "&H00000000&"  # black  — outline
+_COLOUR_SHADOW = "&H00003399&"  # warm orange-red shadow
 
 _ASS_SCRIPT_INFO = """\
 [Script Info]
@@ -151,31 +139,20 @@ ScaledBorderAndShadow: yes
 
 """
 
-# Style field order:
-#   Name, Fontname, Fontsize,
-#   PrimaryColour, SecondaryColour, OutlineColour, BackColour,
-#   Bold, Italic, Underline, StrikeOut,
-#   ScaleX, ScaleY, Spacing, Angle,
-#   BorderStyle, Outline, Shadow,
-#   Alignment, MarginL, MarginR, MarginV, Encoding
-#
-# BorderStyle 1 = outline + shadow.
-# Komika Axis is a bold comic-style font — punchy subtitle look.
-# Outline=6 gives a fat black border that puffs the letters out.
-# Shadow=2 with a coloured BackColour adds a warm offset shadow for depth.
-# Alignment 2 = numpad bottom-centre — places subtitles in the lower portion of the 1080×1920 canvas.
+# Fontsize reduced from 150→110 to fit 3 words per line comfortably.
+# Outline reduced from 18→12 to match the smaller font.
 _ASS_STYLES = (
     "[V4+ Styles]\n"
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
     "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
     "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
     "Alignment, MarginL, MarginR, MarginV, Encoding\n"
-    f"Style: Default,Komika Axis,150,"
+    f"Style: Default,Komika Axis,110,"
     f"{_COLOUR_WHITE},{_COLOUR_BLACK},{_COLOUR_BLACK},{_COLOUR_SHADOW},"
-    f"-1,0,0,0,"        # Bold=-1 (on), no italic/underline/strikeout
-    f"100,100,1,0,"     # ScaleX, ScaleY, Spacing=1 (slight letter spacing), Angle
-    f"1,18,2,"          # BorderStyle=1, Outline=18px (3x thicker border), Shadow=2px
-    f"2,40,40,768,1\n"  # Alignment=2 (bottom-centre), MarginL/R=40, MarginV=768 (~40% from bottom), Encoding=1
+    f"-1,0,0,0,"
+    f"100,100,1,0,"
+    f"1,12,2,"
+    f"2,40,40,768,1\n"
     "\n"
 )
 
@@ -185,23 +162,59 @@ _ASS_EVENTS_HEADER = (
 )
 
 
-def _build_ass(phrases: list[dict[str, Any]]) -> str:
+def _build_ass(blocks: list[list[dict[str, Any]]]) -> str:
     lines = [_ASS_SCRIPT_INFO, _ASS_STYLES, _ASS_EVENTS_HEADER]
-    for phrase in phrases:
-        start = _ms_to_ass(phrase["start_ms"])
-        end   = _ms_to_ass(phrase["end_ms"])
-        text  = phrase["text"]
-        lines.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{text}\n")
+
+    for block in blocks:
+        display = [_clean_word(w["word"]) for w in block]
+
+        for i, word in enumerate(block):
+            start_ms = word["start_ms"]
+            # Hold until the next word in the block begins; last word uses its own end
+            end_ms = block[i + 1]["start_ms"] if i + 1 < len(block) else word["end_ms"]
+
+            # Guard against zero-length or inverted events
+            if end_ms <= start_ms:
+                end_ms = start_ms + 50
+
+            text  = _format_block(display, highlight_idx=i)
+            start = _ms_to_ass(start_ms)
+            end   = _ms_to_ass(end_ms)
+            lines.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{text}\n")
+
     return "".join(lines)
 
 
+def _format_block(words: list[str], highlight_idx: int) -> str:
+    """Render a block as two subtitle lines with the active word coloured yellow.
+
+    Line 1: words[0 : LINE_SIZE]
+    Line 2: words[LINE_SIZE : BLOCK_SIZE]  (empty if block has ≤ LINE_SIZE words)
+    """
+    parts = []
+    for i, word in enumerate(words):
+        if i == highlight_idx:
+            parts.append(f"{{\\c{_COLOUR_YELLOW}}}{word}{{\\c{_COLOUR_WHITE}}}")
+        else:
+            parts.append(word)
+
+    line1 = " ".join(parts[:LINE_SIZE])
+    line2 = " ".join(parts[LINE_SIZE:])
+
+    return f"{line1}\\N{line2}" if line2 else line1
+
+
+# ---------------------------------------------------------------------------
+# Timestamp helpers
+# ---------------------------------------------------------------------------
+
 def _ms_to_ass(ms: int) -> str:
     """Convert milliseconds to ASS timestamp H:MM:SS.cc."""
-    total_cs, rem = divmod(ms, 10)   # centiseconds
-    cs            = total_cs % 100
-    total_s       = total_cs // 100
-    s             = total_s  % 60
-    total_m       = total_s  // 60
-    m             = total_m  % 60
-    h             = total_m  // 60
+    total_cs = ms // 10
+    cs       = total_cs % 100
+    total_s  = total_cs // 100
+    s        = total_s  % 60
+    total_m  = total_s  // 60
+    m        = total_m  % 60
+    h        = total_m  // 60
     return f"{h}:{m:02d}:{s:02d}.{cs:02d}"

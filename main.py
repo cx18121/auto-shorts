@@ -96,7 +96,9 @@ def main() -> None:
                           help="Drop into interactive review after scraping")
 
     # --- review ---
-    sub.add_parser("review", help="Review pending backlog items interactively")
+    p_review = sub.add_parser("review", help="Review pending backlog items interactively")
+    p_review.add_argument("--ai", action="store_true",
+                          help="Use Claude to auto-approve/reject instead of manual input")
 
     # --- backlog-status ---
     sub.add_parser("backlog-status", help="Print backlog counts per channel")
@@ -291,7 +293,7 @@ def _generate_storytelling(
         logger.info("STORY %d/%d", i + 1, count)
 
         story = _generate_with_quality(
-            generate_fn=lambda: generate_story(profile),
+            generate_fn=lambda feedback="": generate_story(profile, feedback=feedback),
             quality_fn=lambda s: check_quality(s, profile),
             label="story",
         )
@@ -411,7 +413,7 @@ def _generate_storytelling_from_backlog(
             }
 
             story = _generate_with_quality(
-                generate_fn=lambda p=post: adapt_reddit_post(p, slug, profile),
+                generate_fn=lambda p=post, feedback="": adapt_reddit_post(p, slug, profile, feedback=feedback),
                 quality_fn=lambda s: check_quality(s, profile) if profile else {"passed": True, "overall": 10.0},
                 label="story-from-backlog",
             )
@@ -561,7 +563,7 @@ def _generate_tweets(
             logger.info("TWEET %d/%d", i + 1, count)
 
             tweet = _generate_with_quality(
-                generate_fn=lambda: generate_tweet(profile),
+                generate_fn=lambda feedback="": generate_tweet(profile, feedback=feedback),
                 quality_fn=lambda t: check_quality(t, profile),
                 label="tweet",
             )
@@ -659,10 +661,15 @@ def _scrape_tweets(count: int, min_likes: int) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def _generate_with_quality(generate_fn, quality_fn, label: str):
-    """Generate content, quality-check it, retry up to MAX_QUALITY_RETRIES times."""
+    """Generate content, quality-check it, retry up to MAX_QUALITY_RETRIES times.
+
+    On each retry, the rejection reason from the previous attempt is passed back
+    to generate_fn as a feedback string so the generator can correct its mistakes.
+    """
+    feedback = ""
     for attempt in range(1, _MAX_QUALITY_RETRIES + 1):
         try:
-            content = generate_fn()
+            content = generate_fn(feedback=feedback)
             quality = quality_fn(content)
             logger.info(
                 "%s attempt %d/%d: overall=%.1f passed=%s",
@@ -671,7 +678,8 @@ def _generate_with_quality(generate_fn, quality_fn, label: str):
             )
             if quality.get("passed"):
                 return content
-            logger.info("Rejected (%s), retrying…", quality.get("reason", "")[:80])
+            feedback = quality.get("reason", "")
+            logger.info("Rejected (%s), retrying with feedback…", feedback[:80])
         except Exception as e:
             logger.warning("%s generation attempt %d failed: %s", label, attempt, e)
     return None
@@ -867,8 +875,70 @@ def cmd_scrape(fmt: str, window: str,
           f"({result['passed']} passed, {result['scraped']} scraped)")
 
 
-def cmd_review(channel_cfg: "config.ChannelConfig") -> None:
-    """Interactive review of pending backlog items for one channel."""
+def _ai_review_item(item: dict, source_label: str, channel_cfg: "config.ChannelConfig") -> tuple[str, str]:
+    """Ask Claude whether to approve or reject a backlog item.
+
+    Returns (decision, reason) where decision is 'approve' or 'reject'.
+    """
+    import json as _json
+    import anthropic
+
+    if source_label == "Reddit":
+        content_block = (
+            f"Subreddit: r/{item['subreddit']}\n"
+            f"Score: {item['score']:,}  Words: {item['word_count']}\n"
+            f"Title: {item['title']}\n\n"
+            f"{item['body'][:800]}"
+        )
+        content_type = "Reddit story"
+    else:
+        content_block = (
+            f"Author: @{item['username']}\n"
+            f"Likes: {item['likes']:,}  Retweets: {item['retweets']:,}\n\n"
+            f"{item['tweet_text']}"
+        )
+        content_type = "tweet"
+
+    prompt = (
+        f"You are reviewing {content_type}s for a YouTube Shorts channel called \"{channel_cfg.name}\".\n"
+        f"The channel niche is: {channel_cfg.slug.replace('-', ' ')}.\n\n"
+        f"Decide whether this {content_type} would make an engaging, high-quality YouTube Short.\n"
+        f"Approve if it has a strong hook, emotional engagement, and suits the niche.\n"
+        f"Reject if it is boring, too short, off-topic, or low quality.\n\n"
+        f"CONTENT:\n{content_block}\n\n"
+        f'Return exactly this JSON: {{"decision": "approve" or "reject", "reason": "one sentence"}}'
+    )
+
+    client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    for attempt in range(1, 4):
+        try:
+            resp = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=128,
+                temperature=0.2,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = resp.content[0].text.strip()
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+            result = _json.loads(text.strip())
+            decision = result.get("decision", "reject").lower()
+            if decision not in ("approve", "reject"):
+                decision = "reject"
+            return decision, result.get("reason", "")
+        except Exception as e:
+            logger.warning("AI review attempt %d failed: %s", attempt, e)
+            if attempt == 3:
+                return "reject", f"evaluation error: {e}"
+            import time as _time
+            _time.sleep(2 ** attempt)
+    return "reject", "all attempts failed"
+
+
+def cmd_review(channel_cfg: "config.ChannelConfig", ai: bool = False) -> None:
+    """Review pending backlog items — interactively or via Claude (--ai)."""
     from analysis.db import get_connection
     from pipeline.backlog import (
         get_pending_stories, get_pending_tweets,
@@ -899,7 +969,12 @@ def cmd_review(channel_cfg: "config.ChannelConfig") -> None:
             return
 
         print(f"\nReviewing {len(items)} pending {source_label} item(s) for [{channel_cfg.slug}]")
-        print("Commands: y=approve  n=reject  s=skip\n")
+        if ai:
+            print("Mode: AI (Claude) auto-review\n")
+        else:
+            print("Commands: y=approve  n=reject  s=skip\n")
+
+        approved_count = rejected_count = 0
 
         for item in items:
             item_id = item[id_key]
@@ -912,22 +987,37 @@ def cmd_review(channel_cfg: "config.ChannelConfig") -> None:
                 print(f"Likes: {item['likes']:,}  Retweets: {item['retweets']:,}")
                 print(f"\n{item['tweet_text']}")
 
-            try:
-                choice = input("\nApprove? (y/n/skip): ").strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                print("\nReview session ended.")
-                break
-
-            if choice == "y":
-                approve_item(conn, table, item_id, channel_cfg.slug)
-                conn.commit()
-                print("  Approved.")
-            elif choice == "n":
-                reject_item(conn, table, item_id, channel_cfg.slug)
-                conn.commit()
-                print("  Rejected.")
+            if ai:
+                decision, reason = _ai_review_item(dict(item), source_label, channel_cfg)
+                print(f"  AI decision: {decision.upper()} — {reason}")
+                if decision == "approve":
+                    approve_item(conn, table, item_id, channel_cfg.slug)
+                    conn.commit()
+                    approved_count += 1
+                else:
+                    reject_item(conn, table, item_id, channel_cfg.slug)
+                    conn.commit()
+                    rejected_count += 1
             else:
-                print("  Skipped.")
+                try:
+                    choice = input("\nApprove? (y/n/skip): ").strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    print("\nReview session ended.")
+                    break
+
+                if choice == "y":
+                    approve_item(conn, table, item_id, channel_cfg.slug)
+                    conn.commit()
+                    print("  Approved.")
+                elif choice == "n":
+                    reject_item(conn, table, item_id, channel_cfg.slug)
+                    conn.commit()
+                    print("  Rejected.")
+                else:
+                    print("  Skipped.")
+
+        if ai:
+            print(f"\nAI review complete: {approved_count} approved, {rejected_count} rejected.")
     finally:
         conn.close()
 
@@ -1054,7 +1144,7 @@ def cmd_run_cycle(channel_cfg: "config.ChannelConfig", publish_at: str | None = 
             }
 
             story = _generate_with_quality(
-                generate_fn=lambda p=post: adapt_reddit_post(p, slug, profile),
+                generate_fn=lambda p=post, feedback="": adapt_reddit_post(p, slug, profile, feedback=feedback),
                 quality_fn=lambda s: check_quality(s, profile) if profile else {"passed": True, "overall": 10.0},
                 label="run-cycle-story",
             )
@@ -1254,9 +1344,9 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg: "config.ChannelConf
     elif args.command == "scrape":
         cmd_scrape(args.format, args.window, channel_cfg)
         if getattr(args, "review", False):
-            cmd_review(channel_cfg)
+            cmd_review(channel_cfg, ai=getattr(args, "ai", False))
     elif args.command == "review":
-        cmd_review(channel_cfg)
+        cmd_review(channel_cfg, ai=getattr(args, "ai", False))
     elif args.command == "backlog-status":
         cmd_backlog_status(channel_cfg)
     elif args.command == "setup-youtube":

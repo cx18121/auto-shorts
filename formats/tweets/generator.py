@@ -39,7 +39,7 @@ CHANNEL STYLE GUIDANCE:
 
 EMOTIONAL TRIGGERS TO USE: {emotional_triggers}
 HOOK TYPES THAT WORK: {hook_patterns}
-
+{feedback_block}
 Rules:
 - The tweet must be a standalone, punchy statement that works as a video hook
 - Display name and username must sound like a real person (not obviously fake)
@@ -78,18 +78,19 @@ Return a JSON array of {n} tweet objects, each with:
 }}"""
 
 
-def generate_tweet(profile: dict[str, Any]) -> dict[str, Any]:
+def generate_tweet(profile: dict[str, Any], feedback: str = "") -> dict[str, Any]:
     """Generate a single tweet from a style profile.
 
     Args:
-        profile: Style profile dict.
+        profile:  Style profile dict.
+        feedback: Optional rejection reason from a previous attempt to guide regeneration.
 
     Returns:
         Tweet dict with keys: display_name, username, tweet_text, likes,
         retweets, category, hook_type.
     """
     client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
-    prompt = _build_prompt(profile)
+    prompt = _build_prompt(profile, feedback=feedback)
 
     for attempt in range(1, _MAX_RETRIES + 2):
         try:
@@ -175,12 +176,17 @@ def generate_thread(count: int, profile_path: str) -> list[list[dict[str, Any]]]
 # Internals
 # ---------------------------------------------------------------------------
 
-def _build_prompt(profile: dict[str, Any]) -> str:
+def _build_prompt(profile: dict[str, Any], feedback: str = "") -> str:
     cs = profile.get("content_style", {})
+    feedback_block = (
+        f"\nPREVIOUS ATTEMPT FEEDBACK (fix these issues in your next version):\n{feedback}\n"
+        if feedback else ""
+    )
     return _USER_PROMPT.format(
         guidance=profile.get("generation_prompt_guidance", "")[:400],
         emotional_triggers=", ".join(cs.get("emotional_triggers", ["relatability", "humor"])[:4]),
         hook_patterns=", ".join(cs.get("hook_patterns", [])[:3]),
+        feedback_block=feedback_block,
     )
 
 
