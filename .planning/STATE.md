@@ -136,6 +136,7 @@ None yet.
 | 11 | Fix empty description in final.txt — fallback uses first 2 sentences of content, title truncates at word boundary | 2026-03-15 | 527c2b2 | [260315-j8t-fix-the-video-description-in-the-txt-fil](./quick/260315-j8t-fix-the-video-description-in-the-txt-fil/) |
 | 12 | Speed up videos to 1.3x, remove Reddit post overlay, add background music mixing | 2026-03-16 | 91cc54a | [260315-tsy-speed-up-videos-remove-reddit-post-overl](./quick/260315-tsy-speed-up-videos-remove-reddit-post-overl/) |
 | 13 | rebuild twitter scraping pipeline to use home feed for viral tweets | 2026-03-18 | adac5dc | [260318-m69-rebuild-twitter-scraping-pipeline-to-use](./quick/260318-m69-rebuild-twitter-scraping-pipeline-to-use/) |
+| 14 | Fix config.py validation to allow empty subreddits list for tweets-format channels | 2026-03-18 | 88c00ca | [260318-mk2-fix-config-py-validation-to-allow-empty-](./quick/260318-mk2-fix-config-py-validation-to-allow-empty-/) |
 
 ## Session Continuity
 
