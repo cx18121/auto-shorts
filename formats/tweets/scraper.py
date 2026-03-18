@@ -390,16 +390,29 @@ async def _scrape_async(
     results: list[dict] = []
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=True)
+        browser = await pw.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--disable-features=IsolateOrigins,site-per-process",
+                "--disable-infobars",
+                "--no-first-run",
+            ],
+        )
         try:
             ctx = await browser.new_context(
                 user_agent=(
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                     "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/122.0.0.0 Safari/537.36"
+                    "Chrome/131.0.0.0 Safari/537.36"
                 ),
                 viewport={"width": 1280, "height": 900},
+                locale="en-US",
+                timezone_id="America/New_York",
             )
+            await ctx.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            """)
             await ctx.add_cookies(cookies)
             page = await ctx.new_page()
 
