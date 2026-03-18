@@ -1,6 +1,5 @@
 # Environment
 .env
-channels.yaml
 
 # Python
 __pycache__/
