@@ -22,7 +22,7 @@ _CRF         = "18"
 _AUDIO_CODEC = "aac"
 _AUDIO_BR    = "192k"
 _FPS         = 30
-AUDIO_SPEED  = 1.4           # 40% faster playback
+AUDIO_SPEED  = 1.3           # 30% faster playback
 _AUDIO_VOLUME = "1.5"        # 50% volume boost
 
 # Absolute path to the music directory
@@ -71,7 +71,7 @@ def assemble_tweet_video(
     if duration_seconds is None:
         duration_seconds = _probe_duration(aud)
 
-    adjusted_duration = duration_seconds / AUDIO_SPEED
+    adjusted_duration = duration_seconds / AUDIO_SPEED + 0.5
     total_frames = int(adjusted_duration * _FPS)
     logger.info("Assembling tweet video | img=%s | audio=%.2fs | adjusted=%.2fs | frames=%d",
                 img.name, duration_seconds, adjusted_duration, total_frames)

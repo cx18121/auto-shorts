@@ -82,7 +82,7 @@ def assemble_video(
         bg.name, aud.name, subs.name, duration_seconds,
     )
 
-    adjusted_duration = duration_seconds / AUDIO_SPEED
+    adjusted_duration = duration_seconds / AUDIO_SPEED + 0.5
     bg_start = _random_bg_start(bg, adjusted_duration)
 
     cmd = _build_ffmpeg_cmd(bg, aud, subs, out, duration_seconds, bg_start=bg_start)
@@ -119,7 +119,7 @@ def _build_ffmpeg_cmd(
     """
     ass_escaped = _escape_filter_path(str(subs))
     fonts_escaped = _escape_filter_path(_FONTS_DIR)
-    adjusted_duration = duration / AUDIO_SPEED
+    adjusted_duration = duration / AUDIO_SPEED + 0.5
 
     vf_chain = f"crop=ih*9/16:ih,scale=1080:1920,ass={ass_escaped}:fontsdir={fonts_escaped}"
     fc = (
@@ -352,7 +352,7 @@ def _build_split_ffmpeg_cmd(
 
     Gameplay fills the entire canvas; the Reddit post floats over the top ~960px.
     """
-    adjusted_duration = duration / AUDIO_SPEED
+    adjusted_duration = duration / AUDIO_SPEED + 0.5
     # Scroll from top to bottom; if image is shorter than _POST_H, no scroll needed
     scroll_y = f"max(0,(in_h-min(in_h\\,{_POST_H})))*t/{adjusted_duration}"
 
