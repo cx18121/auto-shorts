@@ -591,7 +591,8 @@ def _run_tweet_pipeline(tweet: dict, render_fn, assemble_fn) -> str | None:
         img_path = render_fn(tweet, str(workdir / "tweet.png"))
 
         logger.info("[2/3] TTS…")
-        tts = generate_tts(tweet["tweet_text"], str(workdir))
+        tts_script = f"@{tweet.get('username', '')} says: {tweet['tweet_text']}"
+        tts = generate_tts(tts_script, str(workdir))
 
         logger.info("[3/3] Assembling…")
         out = assemble_fn(
@@ -639,7 +640,8 @@ def _scrape_tweets(count: int, min_likes: int) -> list[str]:
             img_path = render_tweet(tweet, str(workdir / "tweet.png"))
 
             logger.info("[2/3] TTS…")
-            tts = generate_tts(tweet["text"], str(workdir))
+            tts_script = f"@{tweet['username']} says: {tweet['text']}"
+            tts = generate_tts(tts_script, str(workdir))
 
             logger.info("[3/3] Assembling…")
             out = assemble_tweet_video(
