@@ -270,17 +270,16 @@ async def _scrape_page_playwright(
     """
     logger.info("Navigating to %s", url)
     try:
-        # Use "commit" for x.com/home — the page keeps websockets open indefinitely
-        # which prevents "domcontentloaded" from ever resolving in some cookie states.
-        nav_wait = "commit" if "/home" in url else "domcontentloaded"
-        await page.goto(url, wait_until=nav_wait, timeout=30_000)
+        # Always use "commit" — X.com pages keep websockets open indefinitely which
+        # prevents "domcontentloaded" from resolving, and profile pages suffer the
+        # same headless-detection issue that previously blocked x.com/home.
+        await page.goto(url, wait_until="commit", timeout=30_000)
 
-        # After navigation commit, wait for DOMContentLoaded separately with its own timeout
-        if nav_wait == "commit":
-            try:
-                await page.wait_for_load_state("domcontentloaded", timeout=15_000)
-            except Exception:
-                logger.debug("DOMContentLoaded timeout for %s — continuing anyway", label or url)
+        # After commit, wait for DOMContentLoaded separately with its own timeout
+        try:
+            await page.wait_for_load_state("domcontentloaded", timeout=15_000)
+        except Exception:
+            logger.debug("DOMContentLoaded timeout for %s — continuing anyway", label or url)
 
         # Detect login wall redirect
         current_url = page.url
@@ -292,7 +291,23 @@ async def _scrape_page_playwright(
             )
             return []
 
-        await page.wait_for_selector('[data-testid="tweet"]', timeout=20_000)
+        # Let the React/Next.js bundle hydrate before querying tweet cards
+        await page.wait_for_timeout(2_000)
+
+        # Wait for tweet cards — try primary selector then fall back to article
+        try:
+            await page.wait_for_selector('[data-testid="tweet"]', timeout=15_000)
+        except Exception:
+            logger.debug(
+                "Primary tweet selector timeout for %s, trying article fallback", label or url
+            )
+            try:
+                await page.wait_for_selector("article", timeout=10_000)
+            except Exception as e2:
+                logger.warning(
+                    "Failed to load %s: no tweets or articles found", label or url
+                )
+                return []
     except Exception as e:
         logger.warning("Failed to load %s: %s", label or url, e)
         return []
@@ -306,6 +321,8 @@ async def _scrape_page_playwright(
             break
 
         cards = await page.query_selector_all('[data-testid="tweet"]')
+        if not cards:
+            cards = await page.query_selector_all('article[data-testid="tweet"]')
         prev_seen = len(seen_ids)
 
         for card in cards:
