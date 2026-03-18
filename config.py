@@ -108,9 +108,9 @@ class ChannelConfig:
                 f"Channel '{self.slug}': format must be one of {sorted(VALID_FORMATS)}, "
                 f"got '{self.format}'"
             )
-        if not self.subreddits:
+        if self.format == "storytelling" and not self.subreddits:
             raise ValueError(
-                f"Channel '{self.slug}': subreddits list must not be empty"
+                f"Channel '{self.slug}': subreddits list must not be empty for storytelling format"
             )
         if not self.voice_id:
             raise ValueError(
