@@ -116,7 +116,7 @@ def _group_into_blocks(words: list[dict[str, Any]]) -> list[list[dict[str, Any]]
 def _clean_word(raw: str) -> str:
     """Uppercase and strip punctuation for clean subtitle display."""
     cleaned = re.sub(r"[\u2013\u2014\-]+", " ", raw)
-    return re.sub(r"[^\w\s]", "", cleaned).upper().strip()
+    return re.sub(r"[?.!\-\u2013\u2014:]", "", cleaned).upper().strip()
 
 
 # ---------------------------------------------------------------------------

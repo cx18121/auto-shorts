@@ -577,7 +577,7 @@ def save_metadata_file(
     hashtag_str = " ".join(f"#{t}" for t in metadata.get("hashtags", []))
 
     lines = [
-        metadata.get("title", ""),
+        f"Title: {metadata.get('title', '')}",
         "",
         metadata.get("description", ""),
         "",
