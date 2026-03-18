@@ -22,7 +22,7 @@ _CRF         = "18"
 _AUDIO_CODEC = "aac"
 _AUDIO_BR    = "192k"
 _FPS         = 30
-AUDIO_SPEED  = 1.5           # 50% faster playback
+AUDIO_SPEED  = 1.4           # 40% faster playback
 _AUDIO_VOLUME = "1.5"        # 50% volume boost
 
 # Absolute path to the music directory

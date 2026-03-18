@@ -514,8 +514,13 @@ def generate_upload_metadata(
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
         )
-        raw_json = response.content[0].text
-        ai_result = json.loads(raw_json)
+        raw_json = response.content[0].text.strip()
+        # Strip markdown code fences if present
+        if raw_json.startswith("```"):
+            raw_json = raw_json.split("```")[1]
+            if raw_json.startswith("json"):
+                raw_json = raw_json[4:]
+        ai_result = json.loads(raw_json.strip())
     except Exception as exc:
         logger.error("generate_upload_metadata: Claude call failed: %s", exc)
         # Fallback title: truncate at last word boundary within 80 chars

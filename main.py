@@ -692,10 +692,10 @@ def _generate_with_quality(generate_fn, quality_fn, label: str):
 
 def _pick_background() -> str:
     bg_dir = config.ASSETS_DIR / "backgrounds"
-    exts   = ("*.mp4", "*.webm", "*.mov", "*.mkv")
-    clips  = [p for ext in exts for p in bg_dir.glob(ext) if "test" not in p.name]
+    exts   = ("**/*.mp4", "**/*.webm", "**/*.mov", "**/*.mkv")
+    clips  = [p for ext in exts for p in bg_dir.glob(ext) if "test" not in p.name and not p.name.endswith(".part")]
     if not clips:
-        clips = [p for ext in exts for p in bg_dir.glob(ext)]
+        clips = [p for ext in exts for p in bg_dir.glob(ext) if not p.name.endswith(".part")]
     if not clips:
         logger.error("No background clips found in %s", bg_dir)
         sys.exit(1)

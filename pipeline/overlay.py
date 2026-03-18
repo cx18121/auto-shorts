@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 # Block / caption parameters
 # ---------------------------------------------------------------------------
 
-BLOCK_SIZE = 6   # total words per caption block  (2 lines × 3)
-LINE_SIZE  = 3   # words per line within the block
+BLOCK_SIZE = 4   # total words per caption block  (2 lines × 2)
+LINE_SIZE  = 2   # words per line within the block
 
 # Sentence-ending punctuation → always flush early
 _HARD_BREAK = frozenset(".!?")

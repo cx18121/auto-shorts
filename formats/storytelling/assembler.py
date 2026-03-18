@@ -29,7 +29,7 @@ _AUDIO_CODEC = "aac"
 _AUDIO_BR    = "192k"
 
 # Audio processing: speed up narration slightly and boost volume
-AUDIO_SPEED  = 1.5           # 50% faster playback
+AUDIO_SPEED  = 1.4           # 40% faster playback
 _AUDIO_VOLUME = "1.5"        # 50% volume boost
 
 
@@ -194,14 +194,17 @@ def _probe_duration(audio_path: Path) -> float:
 
 
 def _probe_video_duration(video_path: Path) -> float:
-    """Return the duration of a video file in seconds using ffprobe."""
+    """Return the duration of a video file in seconds using ffprobe.
+
+    Reads from format-level duration (reliable for webm/mkv/mp4) rather than
+    stream-level, which is often absent in container formats like webm.
+    """
     result = subprocess.run(
         [
             "ffprobe",
             "-v", "quiet",
             "-print_format", "json",
-            "-show_streams",
-            "-select_streams", "v:0",
+            "-show_format",
             str(video_path),
         ],
         capture_output=True,
@@ -209,10 +212,10 @@ def _probe_video_duration(video_path: Path) -> float:
         check=True,
     )
     info = json.loads(result.stdout)
-    streams = info.get("streams", [])
-    if not streams:
-        raise RuntimeError(f"ffprobe found no video streams in {video_path}")
-    return float(streams[0].get("duration", 0))
+    duration = info.get("format", {}).get("duration")
+    if not duration:
+        raise RuntimeError(f"ffprobe could not determine duration for {video_path}")
+    return float(duration)
 
 
 def _random_bg_start(bg_path: Path, required_duration: float) -> float:
