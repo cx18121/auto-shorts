@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: "Completed quick task 260318-lld: Fix Twitter scraper hanging on account profile pages"
-last_updated: "2026-03-18T19:36:26.543Z"
+stopped_at: "Completed quick task 260318-m69: Rebuild Twitter scraping pipeline to use X.com home feed"
+last_updated: "2026-03-18T20:01:26.782Z"
 last_activity: "2026-03-13 - Completed quick task 9: Sort new backlog stories by scrape date (newest batch first)"
 progress:
   total_phases: 4
@@ -106,6 +106,8 @@ Recent decisions affecting current work:
 - [Phase 04-upload-scheduler]: YouTube and Instagram uploads are independent: YouTube exception is caught and logged, Instagram attempt always follows
 - [Phase 04-upload-scheduler]: INSTAGRAM_PUBLIC_BASE_URL must be set in environment for Instagram uploads — no local file serving fallback
 - [Phase 04-upload-scheduler]: mark_used called after both upload attempts complete — item consumed regardless of upload outcome
+- [Phase quick-260318-m69]: Home feed is the default for channels with empty twitter_accounts — no fallback to hardcoded VIRAL_ACCOUNTS list
+- [Phase quick-260318-m69]: scrape_and_store_tweets passes include_home=home_only, not include_home=True always — explicit account lists can still disable home feed
 
 ### Pending Todos
 
@@ -136,6 +138,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T19:36:26.465Z
-Stopped at: Completed quick task 260318-lld: Fix Twitter scraper hanging on account profile pages
+Last session: 2026-03-18T20:01:22.324Z
+Stopped at: Completed quick task 260318-m69: Rebuild Twitter scraping pipeline to use X.com home feed
 Resume file: None
