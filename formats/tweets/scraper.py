@@ -539,6 +539,7 @@ def scrape_and_store_tweets(
         n=100,
         min_likes=1,
         accounts=channel_cfg.twitter_accounts,
+        include_home=False,
     )
     logger.info("scrape_and_store_tweets: scraped %d raw tweets", len(raw_tweets))
 
