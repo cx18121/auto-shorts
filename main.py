@@ -10,6 +10,7 @@ Commands:
 import argparse
 import json
 import logging
+import random
 import subprocess
 import sys
 import time
@@ -691,13 +692,16 @@ def _generate_with_quality(generate_fn, quality_fn, label: str):
 
 def _pick_background() -> str:
     bg_dir = config.ASSETS_DIR / "backgrounds"
-    clips  = [p for p in bg_dir.glob("*.mp4") if "test" not in p.name]
+    exts   = ("*.mp4", "*.webm", "*.mov", "*.mkv")
+    clips  = [p for ext in exts for p in bg_dir.glob(ext) if "test" not in p.name]
     if not clips:
-        clips = list(bg_dir.glob("*.mp4"))
+        clips = [p for ext in exts for p in bg_dir.glob(ext)]
     if not clips:
         logger.error("No background clips found in %s", bg_dir)
         sys.exit(1)
-    return str(clips[0])
+    chosen = random.choice(clips)
+    logger.info("Selected background clip: %s", chosen.name)
+    return str(chosen)
 
 
 def cmd_setup_youtube(channel_cfg: "config.ChannelConfig") -> None:
