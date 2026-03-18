@@ -27,18 +27,20 @@ logger = logging.getLogger(__name__)
 # Path to Netscape-format X.com cookies (exported from browser)
 _COOKIES_PATH = Path("data/x.com_cookies.txt")
 
-# Curated list of accounts known for high-engagement viral tweets
+# Curated list of accounts known for high-engagement viral tweets (general, not niche-specific)
 VIRAL_ACCOUNTS = [
     # Business / entrepreneurship
-    "naval", "paulg", "Jason", "sama", "levelsio",
-    # Science / education
-    "waitbutwhy", "neiltyson",
+    "naval", "paulg", "levelsio", "SahilBloom", "TrungTPhan",
+    # Science / curiosity
+    "neiltyson", "waitbutwhy", "Rainmaker1973", "InterestingAsFcuk",
     # Productivity / mindset
-    "JamesClear", "ShaneAParrish", "morganhousel",
-    # Tech / culture
-    "paulgraham", "benedictevans",
-    # Humor / observations
-    "dril", "KaleFrancis",
+    "JamesClear", "ShaneAParrish", "morganhousel", "markmanson",
+    # Pop culture / humor
+    "dril", "UberFacts", "KimKardashian",
+    # Tech / startup
+    "sama", "benedictevans", "GergelyOrosz",
+    # Life / philosophy
+    "simonsinek", "BreneBrown", "RyanHoliday",
 ]
 
 # Tweets to collect per account profile
@@ -515,15 +517,17 @@ def scrape_top_tweets(
         url, tweet_id, username, display_name, text, likes, retweets, views,
         score, profile_image_url, verified, created_at.
     """
-    target = accounts or VIRAL_ACCOUNTS
+    target = accounts or []
+    # If no accounts given and home feed not explicitly disabled, default to home-only mode
+    use_home = include_home if accounts else True
     logger.info(
-        "Scraping %d accounts + %s for top tweets (min_likes=%d) via Playwright …",
-        len(target),
-        "home feed" if include_home else "no home feed",
+        "Scraping %s%s for top tweets (min_likes=%d) via Playwright …",
+        f"{len(target)} accounts" if target else "home feed only",
+        " + home feed" if (target and use_home) else "",
         min_likes,
     )
     tweets = asyncio.run(
-        _scrape_async(target, _TWEETS_PER_ACCOUNT, min_likes, include_home=include_home)
+        _scrape_async(target, _TWEETS_PER_ACCOUNT, min_likes, include_home=use_home)
     )
     logger.info("Found %d unique qualifying tweets total, returning top %d", len(tweets), n)
     return tweets[:n]
@@ -559,17 +563,19 @@ def scrape_and_store_tweets(
     from pipeline.backlog import insert_tweet
     from pipeline.quality_filter import passes_tweet_quality
 
+    accounts = channel_cfg.twitter_accounts or []
+    home_only = not accounts
     logger.info(
-        "scrape_and_store_tweets: channel=%s accounts=%s",
+        "scrape_and_store_tweets: channel=%s %s",
         channel_cfg.slug,
-        channel_cfg.twitter_accounts,
+        "home feed only (no twitter_accounts configured)" if home_only else f"accounts={accounts}",
     )
 
     raw_tweets = scrape_top_tweets(
         n=100,
         min_likes=1,
-        accounts=channel_cfg.twitter_accounts,
-        include_home=False,
+        accounts=accounts,
+        include_home=home_only,
     )
     logger.info("scrape_and_store_tweets: scraped %d raw tweets", len(raw_tweets))
 
