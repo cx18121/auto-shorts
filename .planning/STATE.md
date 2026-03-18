@@ -5,7 +5,7 @@ milestone_name: milestone
 status: planning
 stopped_at: "Completed quick task 260318-n9g: Fix tweet videos cutting off at end and add @username says intro"
 last_updated: "2026-03-18T20:55:12.437Z"
-last_activity: "2026-03-18 - Completed quick task 13: rebuild twitter scraping pipeline to use home feed for viral tweets"
+last_activity: "2026-03-18 - Completed quick task 15: Fix storytelling+tweet videos cutting off at end; add @username says: to tweet voiceover"
 progress:
   total_phases: 4
   completed_phases: 4
@@ -137,6 +137,7 @@ None yet.
 | 12 | Speed up videos to 1.3x, remove Reddit post overlay, add background music mixing | 2026-03-16 | 91cc54a | [260315-tsy-speed-up-videos-remove-reddit-post-overl](./quick/260315-tsy-speed-up-videos-remove-reddit-post-overl/) |
 | 13 | rebuild twitter scraping pipeline to use home feed for viral tweets | 2026-03-18 | adac5dc | [260318-m69-rebuild-twitter-scraping-pipeline-to-use](./quick/260318-m69-rebuild-twitter-scraping-pipeline-to-use/) |
 | 14 | Fix config.py validation to allow empty subreddits list for tweets-format channels | 2026-03-18 | 88c00ca | [260318-mk2-fix-config-py-validation-to-allow-empty-](./quick/260318-mk2-fix-config-py-validation-to-allow-empty-/) |
+| 15 | Fix storytelling+tweet videos cutting off at end; add @username says: to tweet voiceover | 2026-03-18 | 890cd65 | [260318-n9g-fix-tweet-videos-cutting-off-at-end-and-](./quick/260318-n9g-fix-tweet-videos-cutting-off-at-end-and-/) |
 
 ## Session Continuity
 
