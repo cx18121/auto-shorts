@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-11)
 Phase: 1 of 4 (Niche Config + Multi-Channel Foundation)
 Plan: 0 of TBD in current phase
 Status: Ready to plan
-Last activity: 2026-03-13 - Completed quick task 9: Sort new backlog stories by scrape date (newest batch first)
+Last activity: 2026-03-18 - Completed quick task 13: rebuild twitter scraping pipeline to use home feed for viral tweets
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -135,6 +135,7 @@ None yet.
 | 10 | Fix Twitter scraper hanging on x.com/home with commit navigation + login-wall detection | 2026-03-13 | c942f9a | [10-fix-twitter-scraper-getting-stuck-after-](./quick/10-fix-twitter-scraper-getting-stuck-after-/) |
 | 11 | Fix empty description in final.txt — fallback uses first 2 sentences of content, title truncates at word boundary | 2026-03-15 | 527c2b2 | [260315-j8t-fix-the-video-description-in-the-txt-fil](./quick/260315-j8t-fix-the-video-description-in-the-txt-fil/) |
 | 12 | Speed up videos to 1.3x, remove Reddit post overlay, add background music mixing | 2026-03-16 | 91cc54a | [260315-tsy-speed-up-videos-remove-reddit-post-overl](./quick/260315-tsy-speed-up-videos-remove-reddit-post-overl/) |
+| 13 | rebuild twitter scraping pipeline to use home feed for viral tweets | 2026-03-18 | adac5dc | [260318-m69-rebuild-twitter-scraping-pipeline-to-use](./quick/260318-m69-rebuild-twitter-scraping-pipeline-to-use/) |
 
 ## Session Continuity
 
