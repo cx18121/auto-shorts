@@ -10,6 +10,7 @@ Public API:
     assemble_split_video(background_path, audio_path, post_image_path, output_path, subtitles_path=None) -> str
 """
 
+import json
 import logging
 import random
 import subprocess
@@ -207,8 +208,10 @@ def _random_bg_start(bg_path: Path, required_duration: float) -> float:
         return 0.0
 
     if bg_duration <= required_duration:
-        # Clip is shorter than the video we need — loop covers it, start at 0
-        return 0.0
+        # Clip is shorter than the video we need — loop covers it, any start is safe
+        start = random.uniform(0, bg_duration)
+        logger.info("Random background start: %.2fs (clip=%.2fs, looped)", start, bg_duration)
+        return start
 
     max_start = bg_duration - required_duration
     start = random.uniform(0, max_start)
@@ -276,7 +279,10 @@ def assemble_split_video(
         subs.name if subs else "none", duration_seconds,
     )
 
-    cmd = _build_split_ffmpeg_cmd(bg, aud, post, out, duration_seconds, subs)
+    adjusted_duration = duration_seconds / AUDIO_SPEED + 0.5
+    bg_start = _random_bg_start(bg, adjusted_duration)
+
+    cmd = _build_split_ffmpeg_cmd(bg, aud, post, out, duration_seconds, subs, bg_start=bg_start)
     logger.info("FFmpeg command:\n  %s", " ".join(cmd))
     _run_ffmpeg_shared(cmd)
 
@@ -292,6 +298,7 @@ def _build_split_ffmpeg_cmd(
     output: Path,
     duration: float,
     subs: Path | None = None,
+    bg_start: float = 0.0,
 ) -> list[str]:
     """Build FFmpeg command for overlay layout.
 
@@ -335,6 +342,7 @@ def _build_split_ffmpeg_cmd(
     return [
         "ffmpeg",
         "-y",
+        "-ss", str(bg_start),              # random start point in background
         "-stream_loop", "-1",
         "-i", str(bg),                     # input 0: gameplay
         "-i", str(post_img),               # input 1: Reddit post PNG
