@@ -6,6 +6,7 @@ Commands:
     scrape         Scrape content into the backlog
     review         Review pending backlog items
     backlog-status Show backlog counts
+    status         Show channel health summary (backlog, tokens, uploads)
     run-cycle      Full automated cycle (generate + upload + mark-used)
     upload-history Show recent upload history
     setup-youtube  Run YouTube OAuth flow
@@ -99,6 +100,9 @@ def main() -> None:
     p_ig.add_argument("--token", metavar="TOKEN",
                       help="Short-lived Instagram access token (prompted if omitted)")
 
+    # --- status ---
+    sub.add_parser("status", help="Show channel health summary (backlog, tokens, uploads)")
+
     # --- setup-twitter (deprecated no-op) ---
     p_tw = sub.add_parser("setup-twitter", help="(Deprecated) Add a Twitter/X account")
     p_tw.add_argument("--username", required=True)
@@ -134,6 +138,7 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg) -> None:
     from commands.run_cycle import cmd_run_cycle
     from commands.scrape    import cmd_scrape, cmd_backlog_status, cmd_upload_history
     from commands.setup     import cmd_setup_twitter, cmd_setup_youtube, cmd_setup_instagram
+    from commands.status    import cmd_status
 
     if args.command == "generate":
         if args.pick:
@@ -164,6 +169,9 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg) -> None:
 
     elif args.command == "backlog-status":
         cmd_backlog_status(channel_cfg)
+
+    elif args.command == "status":
+        cmd_status(channel_cfg)
 
     elif args.command == "run-cycle":
         cmd_run_cycle(channel_cfg, publish_at=args.publish_at)
