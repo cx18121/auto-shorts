@@ -139,9 +139,10 @@ None yet.
 | 14 | Fix config.py validation to allow empty subreddits list for tweets-format channels | 2026-03-18 | 88c00ca | [260318-mk2-fix-config-py-validation-to-allow-empty-](./quick/260318-mk2-fix-config-py-validation-to-allow-empty-/) |
 | 15 | Fix storytelling+tweet videos cutting off at end; add @username says: to tweet voiceover | 2026-03-18 | 890cd65 | [260318-n9g-fix-tweet-videos-cutting-off-at-end-and-](./quick/260318-n9g-fix-tweet-videos-cutting-off-at-end-and-/) |
 | 16 | Fix random background start in assembler.py | 2026-03-19 | a50b174 | [260319-k8v-fix-random-background-start-in-assembler](./quick/260319-k8v-fix-random-background-start-in-assembler/) |
+| 17 | Fix 32 failing tests across 4 root causes (stale imports, PRAW mock, config isolation) | 2026-03-19 | 1185450 | [260319-kwt-fix-32-failing-tests-across-4-root-cause](./quick/260319-kwt-fix-32-failing-tests-across-4-root-cause/) |
 
 ## Session Continuity
 
 Last session: 2026-03-19
-Stopped at: Completed quick task 260319-k8v: Fix random background start in assembler.py
+Stopped at: Completed quick task 260319-kwt: Fix 32 failing tests across 4 root causes
 Resume file: None
