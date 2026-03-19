@@ -21,7 +21,6 @@ load_dotenv()
 ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
 ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "")
-YOUTUBE_API_KEY: str = os.getenv("YOUTUBE_API_KEY", "")
 
 # Reddit API credentials (PRAW read-only access)
 # Create a script app at https://www.reddit.com/prefs/apps to obtain these.
