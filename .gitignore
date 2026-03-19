@@ -37,6 +37,9 @@ client_secret*.json
 data/channels/*/youtube_token.json
 data/channels/*/instagram_token.json
 
+# Planning (local only)
+.planning/
+
 # OS
 .DS_Store
 Thumbs.db
