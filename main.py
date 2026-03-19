@@ -2,8 +2,7 @@
 main.py — Automated Shorts Pipeline CLI.
 
 Commands:
-    analyze        Fetch and analyse YouTube channel(s)
-    generate       Generate videos (from profile, backlog, or scrape)
+    generate       Generate videos (from backlog or scrape)
     scrape         Scrape content into the backlog
     review         Review pending backlog items
     backlog-status Show backlog counts
@@ -42,20 +41,9 @@ def main() -> None:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    # --- analyze ---
-    p_analyze = sub.add_parser("analyze", help="Fetch and analyse YouTube channel(s)")
-    p_analyze.add_argument("--channels", nargs="+", required=True,
-                           metavar="URL", help="Channel URLs or @handles")
-    p_analyze.add_argument("--visual", action="store_true",
-                           help="Include frame extraction + Claude vision analysis")
-    p_analyze.add_argument("--max-videos", type=int, default=50,
-                           help="Max videos to fetch from channel (default: 50)")
-
     # --- generate ---
     p_gen = sub.add_parser("generate", help="Generate and produce videos")
     p_gen.add_argument("--format", choices=["storytelling", "tweets"], required=True)
-    p_gen.add_argument("--profile", metavar="PATH",
-                       help="Path to style profile JSON")
     p_gen.add_argument("--count", type=int, default=1)
     p_gen.add_argument("--thread", action="store_true",
                        help="Generate thread-style tweet videos (tweets format only)")
@@ -141,24 +129,20 @@ def main() -> None:
 
 def _dispatch_command(args: argparse.Namespace, channel_cfg) -> None:
     """Route the parsed command to the correct handler for a single channel."""
-    from commands.analyze   import cmd_analyze
     from commands.generate  import cmd_generate
     from commands.review    import cmd_review
     from commands.run_cycle import cmd_run_cycle
     from commands.scrape    import cmd_scrape, cmd_backlog_status, cmd_upload_history
     from commands.setup     import cmd_setup_twitter, cmd_setup_youtube, cmd_setup_instagram
 
-    if args.command == "analyze":
-        cmd_analyze(args.channels, args.visual, args.max_videos, channel_cfg=channel_cfg)
-
-    elif args.command == "generate":
+    if args.command == "generate":
         if args.pick:
             args.from_backlog = True
-        if not args.scrape and not args.from_backlog and not args.profile:
-            logger.error("--profile is required unless --scrape or --from-backlog is set")
+        if not args.scrape and not args.from_backlog:
+            logger.error("--scrape or --from-backlog is required for generate command")
             sys.exit(1)
         cmd_generate(
-            args.format, args.profile, args.count,
+            args.format, args.count,
             args.thread,
             scrape=args.scrape,
             min_likes=args.min_likes,

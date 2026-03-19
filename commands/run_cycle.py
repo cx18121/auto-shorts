@@ -20,7 +20,6 @@ from pathlib import Path
 import config
 from commands.generate import (
     _generate_with_quality,
-    _load_style_profile,
     _pick_background,
     _run_storytelling_pipeline,
     _run_tweet_pipeline,
@@ -85,9 +84,7 @@ def cmd_run_cycle(channel_cfg, publish_at: str | None = None) -> None:
 
         if fmt == "storytelling":
             from formats.storytelling.generator import adapt_reddit_post
-            from formats.storytelling.quality import check_quality
 
-            profile = _load_style_profile(channel_cfg)
             post = {
                 "title":     row["title"],
                 "body":      row["body"],
@@ -96,8 +93,8 @@ def cmd_run_cycle(channel_cfg, publish_at: str | None = None) -> None:
             }
 
             story = _generate_with_quality(
-                generate_fn=lambda p=post, feedback="": adapt_reddit_post(p, slug, profile, feedback=feedback),
-                quality_fn=lambda s: check_quality(s, profile) if profile else {"passed": True, "overall": 10.0},
+                generate_fn=lambda p=post, feedback="": adapt_reddit_post(p, slug, feedback=feedback),
+                quality_fn=lambda s: {"passed": True, "overall": 10.0},
                 label="run-cycle-story",
             )
             if story is None:

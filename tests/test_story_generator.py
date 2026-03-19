@@ -118,47 +118,26 @@ class TestBuildRedditPrompt(unittest.TestCase):
         self.generator = generator
 
     def test_niche_tone_hypothetical(self):
-        """_build_reddit_prompt without profile includes 'contemplative' for hypothetical-scenarios."""
+        """_build_reddit_prompt includes 'contemplative' for hypothetical-scenarios."""
         prompt = self.generator._build_reddit_prompt(
-            _SAMPLE_POST, "hypothetical-scenarios", None
+            _SAMPLE_POST, "hypothetical-scenarios"
         )
         self.assertIn("contemplative", prompt.lower())
 
     def test_niche_tone_relationships(self):
-        """_build_reddit_prompt without profile includes 'empathy' for relationships."""
+        """_build_reddit_prompt includes 'empathy' for relationships."""
         prompt = self.generator._build_reddit_prompt(
-            _SAMPLE_POST, "relationships", None
+            _SAMPLE_POST, "relationships"
         )
         self.assertTrue(
             "empathy" in prompt.lower() or "empathetic" in prompt.lower(),
             f"Expected empathy/empathetic in prompt for relationships",
         )
 
-    def test_profile_overrides_niche(self):
-        """_build_reddit_prompt with profile uses profile's tone, not niche defaults."""
-        profile = {
-            "generation_prompt_guidance": "Be extremely dramatic and suspenseful.",
-            "content_style": {
-                "tone": "dramatic thriller",
-                "hook_patterns": ["shocking revelation", "cliffhanger"],
-                "ideal_duration_seconds": {"min": 55, "max": 70},
-                "ideal_word_count": {"min": 120, "max": 180},
-            },
-            "vocabulary_notes": "Use vivid action verbs.",
-        }
-        prompt = self.generator._build_reddit_prompt(
-            _SAMPLE_POST, "hypothetical-scenarios", profile
-        )
-        # Profile guidance should appear, not the default niche tone
-        self.assertIn("dramatic", prompt.lower())
-        self.assertIn("Be extremely dramatic and suspenseful.", prompt)
-        # The niche default 'contemplative' should NOT appear when profile is provided
-        self.assertNotIn("contemplative", prompt.lower())
-
     def test_no_profile_uses_default_duration(self):
-        """_build_reddit_prompt without profile targets 45–60 seconds."""
+        """_build_reddit_prompt targets 45–60 seconds."""
         prompt = self.generator._build_reddit_prompt(
-            _SAMPLE_POST, "hypothetical-scenarios", None
+            _SAMPLE_POST, "hypothetical-scenarios"
         )
         self.assertIn("45", prompt)
         self.assertIn("60", prompt)
@@ -166,7 +145,7 @@ class TestBuildRedditPrompt(unittest.TestCase):
     def test_post_title_and_body_in_prompt(self):
         """_build_reddit_prompt includes post title and body in the output."""
         prompt = self.generator._build_reddit_prompt(
-            _SAMPLE_POST, "relationships", None
+            _SAMPLE_POST, "relationships"
         )
         self.assertIn(_SAMPLE_POST["title"], prompt)
         # Body is truncated to 4000 chars, but first 50 chars should be present
@@ -242,12 +221,12 @@ class TestAdaptRedditPost(unittest.TestCase):
         self.generator = generator
 
     def _call_adapt(self, post=None, channel_slug="hypothetical-scenarios",
-                    profile=None, response_json=_MOCK_RESPONSE_JSON):
+                    response_json=_MOCK_RESPONSE_JSON):
         """Call adapt_reddit_post with a mocked Anthropic client."""
         if post is None:
             post = _SAMPLE_POST
         with patch("anthropic.Anthropic", return_value=_make_mock_client(response_json)):
-            return self.generator.adapt_reddit_post(post, channel_slug, profile)
+            return self.generator.adapt_reddit_post(post, channel_slug)
 
     def test_output_schema(self):
         """adapt_reddit_post() returns dict with all 5 required keys."""

@@ -1,16 +1,13 @@
 """
-formats/storytelling/generator.py — Generate stories from a style profile via Claude Haiku.
+formats/storytelling/generator.py — Adapt Reddit posts into narration scripts via Claude Haiku.
 
 Public API:
-    generate_story(profile)                                   -> dict
-    generate_batch(count, profile_path)                       -> list[dict]
-    adapt_reddit_post(post, channel_slug, profile=None)       -> dict
+    adapt_reddit_post(post, channel_slug)       -> dict
 """
 
 import json
 import logging
 import time
-from pathlib import Path
 from typing import Any
 
 import anthropic
@@ -28,7 +25,7 @@ _MAX_RETRIES = 2
 _REQUIRED_KEYS = {"title", "hook_line", "story_text", "estimated_duration_seconds"}
 
 # ---------------------------------------------------------------------------
-# Niche tone directives (used when no style profile is available)
+# Niche tone directives (per-channel defaults)
 # ---------------------------------------------------------------------------
 _NICHE_TONES: dict[str, str] = {
     "hypothetical-scenarios": (
@@ -40,34 +37,6 @@ _NICHE_TONES: dict[str, str] = {
         "Honor the emotional weight of the situation without being dramatic."
     ),
 }
-
-_SYSTEM_PROMPT = """\
-You are a viral YouTube Shorts scriptwriter. You generate short, compelling stories \
-optimised for text-to-speech narration over gameplay footage.
-
-You always output valid JSON and nothing else. No markdown, no commentary, no code fences."""
-
-_USER_PROMPT = """\
-Generate a story for a YouTube Short based on this style profile:
-
-CHANNEL STYLE GUIDANCE:
-{guidance}
-
-CONTENT STYLE:
-- Hook patterns that work: {hook_patterns}
-- Tone: {tone}
-- Emotional triggers to use: {emotional_triggers}
-- Topic categories: {topic_categories}
-- Target word count: {word_min}–{word_max} words
-- Target duration: {dur_min}–{dur_max} seconds
-{feedback_block}
-OUTPUT FORMAT — return exactly this JSON structure:
-{{
-  "title": "video title under 60 chars",
-  "hook_line": "the opening sentence that grabs attention",
-  "story_text": "the full narration text — written for TTS, natural speech rhythm, no markdown",
-  "estimated_duration_seconds": integer
-}}"""
 
 # ---------------------------------------------------------------------------
 # Reddit adaptation prompts
@@ -115,85 +84,16 @@ OUTPUT FORMAT — return exactly this JSON:
 }}"""
 
 
-def generate_story(profile: dict[str, Any], feedback: str = "") -> dict[str, Any]:
-    """Generate a single story from a style profile.
-
-    Args:
-        profile:  Style profile dict (loaded from JSON file).
-        feedback: Optional rejection reason from a previous attempt to guide regeneration.
-
-    Returns:
-        Story dict with keys: title, hook_line, story_text, estimated_duration_seconds.
-
-    Raises:
-        RuntimeError: If valid JSON is not produced after MAX_RETRIES attempts.
-    """
-    client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
-    prompt = _build_prompt(profile, feedback=feedback)
-
-    for attempt in range(1, _MAX_RETRIES + 2):
-        try:
-            resp = client.messages.create(
-                model=_MODEL,
-                max_tokens=_MAX_TOKENS,
-                temperature=_TEMPERATURE,
-                system=_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            text = resp.content[0].text.strip()
-            story = _parse_json_shared(text)
-            _validate(story)
-            logger.info("Generated story: %r (est. %ds)",
-                        story["title"], story.get("estimated_duration_seconds", 0))
-            return story
-        except (json.JSONDecodeError, ValueError, KeyError) as e:
-            logger.warning("Story generation attempt %d failed: %s", attempt, e)
-            if attempt > _MAX_RETRIES:
-                raise RuntimeError(f"Story generation failed after {_MAX_RETRIES + 1} attempts") from e
-            time.sleep(1)
-        except Exception as e:
-            logger.warning("Claude call attempt %d failed: %s", attempt, e)
-            if attempt > _MAX_RETRIES:
-                raise
-            time.sleep(2 ** attempt)
-
-    raise RuntimeError("Story generation failed")
-
-
-def generate_batch(count: int, profile_path: str) -> list[dict[str, Any]]:
-    """Generate multiple stories from a profile file.
-
-    Args:
-        count:        Number of stories to generate.
-        profile_path: Path to style profile JSON file.
-
-    Returns:
-        List of story dicts (may be fewer than count if some fail).
-    """
-    profile = json.loads(Path(profile_path).read_text())
-    stories: list[dict[str, Any]] = []
-    for i in range(count):
-        try:
-            story = generate_story(profile)
-            stories.append(story)
-            logger.info("Batch progress: %d/%d stories generated", len(stories), count)
-        except Exception as e:
-            logger.error("Failed to generate story %d/%d: %s", i + 1, count, e)
-    return stories
-
-
 def adapt_reddit_post(
     post: dict[str, Any],
     channel_slug: str,
-    profile: dict[str, Any] | None = None,
     feedback: str = "",
 ) -> dict[str, Any]:
     """Adapt a Reddit post into a narration-ready script via Claude Haiku.
 
     Args:
         post:         Backlog story row with keys: title, body (and optionally subreddit, score).
-        channel_slug: Channel slug — used to look up niche tone defaults when no profile.
-        profile:      Style profile dict if one exists; overrides niche defaults entirely.
+        channel_slug: Channel slug — used to look up niche tone defaults from _NICHE_TONES.
         feedback:     Optional rejection reason from a previous attempt to guide regeneration.
 
     Returns:
@@ -214,7 +114,7 @@ def adapt_reddit_post(
     truncated_post = {**post, "body": truncated_body}
 
     client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
-    prompt = _build_reddit_prompt(truncated_post, channel_slug, profile, feedback=feedback)
+    prompt = _build_reddit_prompt(truncated_post, channel_slug, feedback=feedback)
 
     for attempt in range(1, _MAX_RETRIES + 2):
         try:
@@ -253,57 +153,21 @@ def adapt_reddit_post(
 # Internals
 # ---------------------------------------------------------------------------
 
-def _build_prompt(profile: dict[str, Any], feedback: str = "") -> str:
-    cs = profile.get("content_style", {})
-    feedback_block = (
-        f"\nPREVIOUS ATTEMPT FEEDBACK (fix these issues in your next version):\n{feedback}\n"
-        if feedback else ""
-    )
-    return _USER_PROMPT.format(
-        guidance=profile.get("generation_prompt_guidance", "Write engaging, viral short stories."),
-        hook_patterns=", ".join(cs.get("hook_patterns", [])[:3]),
-        tone=cs.get("tone", "engaging and conversational"),
-        emotional_triggers=", ".join(cs.get("emotional_triggers", ["curiosity", "surprise"])[:4]),
-        topic_categories=", ".join(cs.get("topic_categories", [])[:4]),
-        word_min=cs.get("ideal_word_count", {}).get("min", 80),
-        word_max=cs.get("ideal_word_count", {}).get("max", 180),
-        dur_min=cs.get("ideal_duration_seconds", {}).get("min", 30),
-        dur_max=cs.get("ideal_duration_seconds", {}).get("max", 60),
-        feedback_block=feedback_block,
-    )
-
-
 def _build_reddit_prompt(
     post: dict[str, Any],
     channel_slug: str,
-    profile: dict[str, Any] | None,
     feedback: str = "",
 ) -> str:
-    """Build the user message for Reddit post adaptation.
-
-    When a style profile is provided it overrides niche defaults entirely.
-    When no profile is present, niche tone is looked up from _NICHE_TONES.
-    """
-    if profile:
-        cs = profile.get("content_style", {})
-        guidance = profile.get("generation_prompt_guidance", "")
-        tone = cs.get("tone", "engaging and conversational")
-        hook_patterns = ", ".join(cs.get("hook_patterns", [])[:3])
-        dur_min = cs.get("ideal_duration_seconds", {}).get("min", 45)
-        dur_max = cs.get("ideal_duration_seconds", {}).get("max", 60)
-        word_min = cs.get("ideal_word_count", {}).get("min", 100)
-        word_max = cs.get("ideal_word_count", {}).get("max", 160)
-        vocabulary_notes = profile.get("vocabulary_notes", "")
-    else:
-        tone_directive = _NICHE_TONES.get(
-            channel_slug, "Write in an engaging, conversational tone."
-        )
-        guidance = tone_directive
-        tone = tone_directive
-        hook_patterns = "strong opening question or statement"
-        dur_min, dur_max = 45, 60
-        word_min, word_max = 100, 160
-        vocabulary_notes = ""
+    """Build the user message for Reddit post adaptation using niche tone defaults."""
+    tone_directive = _NICHE_TONES.get(
+        channel_slug, "Write in an engaging, conversational tone."
+    )
+    guidance = tone_directive
+    tone = tone_directive
+    hook_patterns = "strong opening question or statement"
+    dur_min, dur_max = 45, 60
+    word_min, word_max = 100, 160
+    vocabulary_notes = ""
 
     feedback_block = (
         f"\nPREVIOUS ATTEMPT FEEDBACK (fix these issues in your next version):\n{feedback}\n"

@@ -2,7 +2,7 @@
 commands/generate.py — Video generation command and all supporting pipeline helpers.
 
 Public API:
-    cmd_generate(fmt, profile_path, count, thread, ...)
+    cmd_generate(fmt, count, thread, ...)
 """
 
 import json
@@ -28,7 +28,6 @@ _DEFAULT_BACKGROUND  = "assets/backgrounds/subwaysurfers.mp4"
 
 def cmd_generate(
     fmt: str,
-    profile_path: str | None,
     count: int,
     thread: bool,
     scrape: bool = False,
@@ -40,40 +39,26 @@ def cmd_generate(
     keep_backlog: bool = False,
     pick_background: bool = False,
 ) -> None:
-    profile = None
-    if profile_path:
-        if not Path(profile_path).exists():
-            logger.error("Profile not found: %s", profile_path)
-            sys.exit(1)
-        profile = json.loads(Path(profile_path).read_text())
-        logger.info("Generating %d %s video(s) from profile: %s",
-                    count, fmt, Path(profile_path).name)
-    elif from_backlog:
+    if from_backlog:
         logger.info("Generating %d %s video(s) from backlog", count, fmt)
     else:
         logger.info("Generating %d %s video(s) (scrape mode)", count, fmt)
 
     if fmt == "storytelling":
         background = _pick_background_interactive() if pick_background else _pick_background()
-        if from_backlog:
-            produced = _generate_storytelling_from_backlog(
-                count, channel_cfg, pick=pick,
-                no_audio=no_audio, keep_backlog=keep_backlog,
-                background=background,
-            )
-        else:
-            produced = _generate_storytelling(count, profile, profile_path, no_audio=no_audio,
-                                              background=background)
+        produced = _generate_storytelling_from_backlog(
+            count, channel_cfg, pick=pick,
+            no_audio=no_audio, keep_backlog=keep_backlog,
+            background=background,
+        )
     else:  # tweets
         if scrape:
             produced = _scrape_tweets(count, min_likes)
-        elif from_backlog or pick:
+        else:
             produced = _generate_tweets_from_backlog(
                 count, channel_cfg, pick=pick,
                 no_audio=no_audio, keep_backlog=keep_backlog,
             )
-        else:
-            produced = _generate_tweets(count, profile, profile_path, thread)
 
     print(f"\nGenerated {len(produced)}/{count} videos:")
     for p in produced:
@@ -83,42 +68,6 @@ def cmd_generate(
 # ===========================================================================
 # Storytelling pipeline
 # ===========================================================================
-
-def _generate_storytelling(
-    count: int,
-    profile: dict,
-    profile_path: str,
-    no_audio: bool = False,
-    background: str | None = None,
-) -> list[str]:
-    from formats.storytelling.generator import generate_story
-    from formats.storytelling.quality import check_quality
-
-    if background is None:
-        background = _pick_background()
-    produced: list[str] = []
-
-    for i in range(count):
-        logger.info("-" * 50)
-        logger.info("STORY %d/%d", i + 1, count)
-
-        story = _generate_with_quality(
-            generate_fn=lambda feedback="": generate_story(profile, feedback=feedback),
-            quality_fn=lambda s: check_quality(s, profile),
-            label="story",
-        )
-        if story is None:
-            logger.error("Story %d/%d rejected after all retries, skipping", i + 1, count)
-            continue
-
-        video_path = _run_storytelling_pipeline(story["story_text"], background, no_audio=no_audio)
-        if video_path:
-            _save_video_metadata(video_path, story["story_text"], "storytelling")
-            produced.append(video_path)
-            logger.info("Story %d/%d done → %s", i + 1, count, video_path)
-
-    return produced
-
 
 def _generate_storytelling_from_backlog(
     count: int,
@@ -132,10 +81,8 @@ def _generate_storytelling_from_backlog(
     from pipeline.db import get_connection
     from pipeline.backlog import get_approved_stories, mark_story_used
     from formats.storytelling.generator import adapt_reddit_post
-    from formats.storytelling.quality import check_quality
 
-    slug    = channel_cfg.slug if channel_cfg else ""
-    profile = _load_style_profile(channel_cfg)
+    slug = channel_cfg.slug if channel_cfg else ""
 
     conn = get_connection()
     try:
@@ -170,8 +117,8 @@ def _generate_storytelling_from_backlog(
             }
 
             story = _generate_with_quality(
-                generate_fn=lambda p=post, feedback="": adapt_reddit_post(p, slug, profile, feedback=feedback),
-                quality_fn=lambda s: check_quality(s, profile) if profile else {"passed": True, "overall": 10.0},
+                generate_fn=lambda p=post, feedback="": adapt_reddit_post(p, slug, feedback=feedback),
+                quality_fn=lambda s: {"passed": True, "overall": 10.0},
                 label="story-from-backlog",
             )
             if story is None:
@@ -198,52 +145,6 @@ def _generate_storytelling_from_backlog(
 # ===========================================================================
 # Tweet pipeline
 # ===========================================================================
-
-def _generate_tweets(
-    count: int,
-    profile: dict,
-    profile_path: str,
-    thread: bool,
-) -> list[str]:
-    from formats.tweets.generator import generate_tweet, generate_thread
-    from formats.tweets.quality import check_quality
-    from formats.tweets.renderer import render_tweet
-    from formats.tweets.assembler import assemble_tweet_video
-
-    produced: list[str] = []
-
-    if thread:
-        threads = generate_thread(count, profile_path)
-        for i, tweet_list in enumerate(threads, 1):
-            logger.info("-" * 50)
-            logger.info("THREAD %d/%d (%d tweets)", i, count, len(tweet_list))
-            tweet = tweet_list[0]
-            video = _run_tweet_pipeline(tweet, render_tweet, assemble_tweet_video)
-            if video:
-                _save_video_metadata(video, tweet["tweet_text"], "tweets")
-                produced.append(video)
-    else:
-        for i in range(count):
-            logger.info("-" * 50)
-            logger.info("TWEET %d/%d", i + 1, count)
-
-            tweet = _generate_with_quality(
-                generate_fn=lambda feedback="": generate_tweet(profile, feedback=feedback),
-                quality_fn=lambda t: check_quality(t, profile),
-                label="tweet",
-            )
-            if tweet is None:
-                logger.error("Tweet %d/%d rejected, skipping", i + 1, count)
-                continue
-
-            video = _run_tweet_pipeline(tweet, render_tweet, assemble_tweet_video)
-            if video:
-                _save_video_metadata(video, tweet["tweet_text"], "tweets")
-                produced.append(video)
-                logger.info("Tweet %d/%d done → %s", i + 1, count, video)
-
-    return produced
-
 
 def _generate_tweets_from_backlog(
     count: int,
@@ -484,23 +385,6 @@ def _interactive_pick(rows: list, max_picks: int, fmt: str) -> list:
             if 0 <= idx < len(rows):
                 selected.append(rows[idx])
     return selected[:max_picks]
-
-
-def _load_style_profile(channel_cfg) -> dict | None:
-    """Load the style profile JSON for a channel, or return None if not configured."""
-    if not channel_cfg or not channel_cfg.style_profile:
-        return None
-    profile_path = Path(channel_cfg.style_profile)
-    if not profile_path.exists():
-        logger.warning("style_profile path not found: %s — continuing without profile", profile_path)
-        return None
-    try:
-        profile = json.loads(profile_path.read_text())
-        logger.info("Loaded style profile: %s", profile_path)
-        return profile
-    except Exception as e:
-        logger.warning("Failed to load style profile %s: %s — continuing without profile", profile_path, e)
-        return None
 
 
 def _pick_background() -> str:

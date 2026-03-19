@@ -87,29 +87,6 @@ class TestChannelConfig(unittest.TestCase):
                 f"Expected data/channels/{slug}/ to exist after load_channels()",
             )
 
-    def test_style_profile_optional(self):
-        """ChannelConfig loads successfully when style_profile is absent from YAML (empty string default)."""
-        cfg = self.config.CHANNELS["hypothetical-scenarios"]
-        self.assertTrue(hasattr(cfg, "style_profile"))
-        # style_profile defaults to empty string when not set
-        self.assertIsInstance(cfg.style_profile, str)
-
-    def test_style_profile_set(self):
-        """ChannelConfig accepts style_profile field and stores it."""
-        import yaml
-        import importlib
-        custom_yaml = EXAMPLE_YAML.replace(
-            'style_profile: ""  # Path to style profile JSON (optional — omit or leave empty to use niche defaults)\n\nrelationships:',
-            'style_profile: "style_profiles/test.json"  # Path to style profile JSON\n\nrelationships:',
-        )
-        self.channels_yaml.write_text(custom_yaml)
-        import config as cfg_module
-        importlib.reload(cfg_module)
-        cfg = cfg_module.CHANNELS["hypothetical-scenarios"]
-        self.assertEqual(cfg.style_profile, "style_profiles/test.json")
-        # Restore original for other tests
-        importlib.reload(self.config)
-
     def test_missing_channels_yaml_raises_clear_error(self):
         self.channels_yaml.unlink()
         import importlib

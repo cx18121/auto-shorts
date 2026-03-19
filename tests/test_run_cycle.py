@@ -68,7 +68,6 @@ def _make_channel_cfg(
     cfg.instagram_user_id = instagram_user_id
     cfg.youtube_client_id = youtube_client_id
     cfg.youtube_client_secret = youtube_client_secret
-    cfg.style_profile = ""
     return cfg
 
 

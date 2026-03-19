@@ -49,10 +49,9 @@ BASE_DIR: Path = Path(__file__).parent
 OUTPUT_DIR: Path = BASE_DIR / "output"
 ASSETS_DIR: Path = BASE_DIR / "assets"
 DATA_DIR: Path = BASE_DIR / "data"
-STYLE_PROFILES_DIR: Path = BASE_DIR / "style_profiles"
 LOGS_DIR: Path = BASE_DIR / "logs"
 
-for _d in [OUTPUT_DIR, DATA_DIR, STYLE_PROFILES_DIR, LOGS_DIR]:
+for _d in [OUTPUT_DIR, DATA_DIR, LOGS_DIR]:
     _d.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------------------
@@ -95,7 +94,6 @@ class ChannelConfig:
     hashtags: list = field(default_factory=list)
     instagram_user_id: str = ""
     quality: dict = field(default_factory=dict)
-    style_profile: str = ""
 
     def __post_init__(self) -> None:
         if not _VALID_SLUG_RE.fullmatch(self.slug):
