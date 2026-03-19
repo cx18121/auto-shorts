@@ -551,7 +551,7 @@ def scrape_and_store_tweets(
         window:      Accepted for API symmetry with ``scrape_and_store_reddit``; X.com
                      has no time-window filter so this parameter is not used.
         _conn:       Optional SQLite connection for testing. If None, a production
-                     connection is opened via ``analysis.db.get_connection()``.
+                     connection is opened via ``pipeline.db.get_connection()``.
 
     Returns:
         Summary dict with keys:
