@@ -12,6 +12,8 @@ import config
 
 logger = logging.getLogger(__name__)
 
+_MAX_RETRIES = 3
+
 
 def cmd_setup_twitter(username: str, password: str, email: str,
                       email_password: str | None,
@@ -102,7 +104,7 @@ def cmd_setup_instagram(channel_cfg, token: str | None = None) -> None:
 
     long_lived_token: str | None = None
     expires_in: int = 0
-    for attempt in range(1, 4):
+    for attempt in range(1, _MAX_RETRIES + 1):
         try:
             resp = requests.get(exchange_url, timeout=10)
             resp.raise_for_status()
@@ -112,7 +114,7 @@ def cmd_setup_instagram(channel_cfg, token: str | None = None) -> None:
             break
         except Exception as exc:
             logger.warning("Instagram token exchange attempt %d/3 failed: %s", attempt, exc)
-            if attempt == 3:
+            if attempt == _MAX_RETRIES:
                 print(f"ERROR: Token exchange failed after 3 attempts: {exc}")
                 sys.exit(1)
             time.sleep(2 ** attempt)
@@ -120,7 +122,7 @@ def cmd_setup_instagram(channel_cfg, token: str | None = None) -> None:
     me_url = f"https://graph.instagram.com/me?fields=id,username&access_token={long_lived_token}"
     ig_user_id: str = ""
     ig_username: str = ""
-    for attempt in range(1, 4):
+    for attempt in range(1, _MAX_RETRIES + 1):
         try:
             resp = requests.get(me_url, timeout=10)
             resp.raise_for_status()
@@ -130,7 +132,7 @@ def cmd_setup_instagram(channel_cfg, token: str | None = None) -> None:
             break
         except Exception as exc:
             logger.warning("Instagram /me fetch attempt %d/3 failed: %s", attempt, exc)
-            if attempt == 3:
+            if attempt == _MAX_RETRIES:
                 print(f"ERROR: Could not fetch Instagram user info: {exc}")
                 sys.exit(1)
             time.sleep(2 ** attempt)

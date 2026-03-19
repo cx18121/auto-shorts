@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 _MODEL       = "claude-sonnet-4-6"
 _BATCH_SIZE  = 7   # videos per analysis batch
 _TOP_N       = 30  # max videos to analyse
+_MAX_RETRIES = 3
 
 
 def build_profile(channel_id: str, aggregates: dict[str, Any], include_visual: bool = False) -> str:
@@ -221,13 +222,13 @@ def _merge_batches(
         today=date.today().isoformat(),
     )
 
-    for attempt in range(1, 4):
+    for attempt in range(1, _MAX_RETRIES + 1):
         try:
             text = _claude_text_call(client, prompt, max_tokens=4096)
             return json.loads(strip_markdown_fences(text))
         except json.JSONDecodeError as e:
             logger.warning("Profile merge returned invalid JSON (attempt %d): %s", attempt, e)
-            if attempt == 3:
+            if attempt == _MAX_RETRIES:
                 return {"error": "invalid JSON", "raw": text[:500]}
             time.sleep(2 ** attempt)
     return {}
@@ -285,7 +286,7 @@ def _load_top_videos(channel_id: str, top_n: int, include_visual: bool) -> list[
 # ---------------------------------------------------------------------------
 
 def _claude_text_call(client: anthropic.Anthropic, prompt: str, max_tokens: int = 2048) -> str:
-    for attempt in range(1, 4):
+    for attempt in range(1, _MAX_RETRIES + 1):
         try:
             resp = client.messages.create(
                 model=_MODEL,
@@ -296,7 +297,7 @@ def _claude_text_call(client: anthropic.Anthropic, prompt: str, max_tokens: int 
             return resp.content[0].text
         except Exception as e:
             logger.warning("Claude call failed (attempt %d): %s", attempt, e)
-            if attempt == 3:
+            if attempt == _MAX_RETRIES:
                 raise
             time.sleep(2 ** attempt)
     raise RuntimeError("Claude call failed after retries")

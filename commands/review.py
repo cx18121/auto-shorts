@@ -9,6 +9,7 @@ import config
 logger = logging.getLogger(__name__)
 
 _HAIKU_MODEL = "claude-haiku-4-5-20251001"
+_MAX_RETRIES = 3
 
 
 def _ai_review_item(item: dict, source_label: str, channel_cfg) -> tuple[str, str]:
@@ -48,7 +49,7 @@ def _ai_review_item(item: dict, source_label: str, channel_cfg) -> tuple[str, st
 
     import json
     client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
-    for attempt in range(1, 4):
+    for attempt in range(1, _MAX_RETRIES + 1):
         try:
             resp = client.messages.create(
                 model=_HAIKU_MODEL,
@@ -63,7 +64,7 @@ def _ai_review_item(item: dict, source_label: str, channel_cfg) -> tuple[str, st
             return decision, result.get("reason", "")
         except Exception as e:
             logger.warning("AI review attempt %d failed: %s", attempt, e)
-            if attempt == 3:
+            if attempt == _MAX_RETRIES:
                 return "reject", f"evaluation error: {e}"
             time.sleep(2 ** attempt)
     return "reject", "all attempts failed"
