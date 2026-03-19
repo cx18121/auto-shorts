@@ -28,6 +28,13 @@ def init_backlog_tables(conn: sqlite3.Connection) -> None:
     This is the canonical DDL; pipeline/db.py delegates here.
     """
     conn.executescript("""
+    CREATE TABLE IF NOT EXISTS background_usage (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel     TEXT NOT NULL,
+        bg_filename TEXT NOT NULL,
+        used_at     TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS backlog_stories (
         id          TEXT PRIMARY KEY,
         channel     TEXT NOT NULL,
@@ -462,3 +469,43 @@ def maybe_auto_approve(
         PROBATION_THRESHOLD,
     )
     return False
+
+
+# ---------------------------------------------------------------------------
+# Background usage tracking
+# ---------------------------------------------------------------------------
+
+def log_background_use(conn: sqlite3.Connection, channel: str, bg_filename: str) -> None:
+    """Record that *bg_filename* was used for a video on *channel*.
+
+    Args:
+        conn:        Active SQLite connection.
+        channel:     Channel slug.
+        bg_filename: Basename of the background clip (e.g. "subwaysurfers.mp4").
+    """
+    conn.execute(
+        "INSERT INTO background_usage (channel, bg_filename, used_at) VALUES (?, ?, ?)",
+        (channel, bg_filename, _utcnow()),
+    )
+    logger.debug("log_background_use: channel=%s bg=%s", channel, bg_filename)
+
+
+def get_recent_backgrounds(
+    conn: sqlite3.Connection, channel: str, limit: int = 5
+) -> list[str]:
+    """Return the last *limit* background filenames used for *channel*, newest first.
+
+    Args:
+        conn:    Active SQLite connection with row_factory=sqlite3.Row.
+        channel: Channel slug.
+        limit:   Number of recent entries to return (default 5).
+
+    Returns:
+        List of bg_filename strings, ordered by used_at DESC.
+    """
+    rows = conn.execute(
+        "SELECT bg_filename FROM background_usage"
+        " WHERE channel=? ORDER BY used_at DESC LIMIT ?",
+        (channel, limit),
+    ).fetchall()
+    return [row["bg_filename"] for row in rows]

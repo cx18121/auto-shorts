@@ -79,7 +79,10 @@ def _generate_storytelling_from_backlog(
 ) -> list[str]:
     """Pull approved Reddit posts from the backlog and produce story videos."""
     from pipeline.db import get_connection
-    from pipeline.backlog import get_approved_stories, mark_story_used
+    from pipeline.backlog import (
+        get_approved_stories, mark_story_used,
+        get_recent_backgrounds, log_background_use,
+    )
     from formats.storytelling.generator import adapt_reddit_post
 
     slug = channel_cfg.slug if channel_cfg else ""
@@ -99,7 +102,8 @@ def _generate_storytelling_from_backlog(
 
         logger.info("Found %d approved story/stories in backlog for [%s]", len(rows), slug)
         if background is None:
-            background = _pick_background()
+            recent = get_recent_backgrounds(conn, slug, limit=5)
+            background = _pick_background(exclude=recent)
         produced: list[str] = []
 
         for i, row in enumerate(rows):
@@ -134,6 +138,8 @@ def _generate_storytelling_from_backlog(
                 if not keep_backlog:
                     mark_story_used(conn, row["id"])
                     conn.commit()
+                log_background_use(conn, slug, Path(background).name)
+                conn.commit()
                 produced.append(video_path)
                 logger.info("Backlog story %d done → %s", len(produced), video_path)
 
@@ -387,8 +393,13 @@ def _interactive_pick(rows: list, max_picks: int, fmt: str) -> list:
     return selected[:max_picks]
 
 
-def _pick_background() -> str:
-    """Return a random background clip from assets/backgrounds/."""
+def _pick_background(exclude: list[str] | None = None) -> str:
+    """Return a random background clip from assets/backgrounds/.
+
+    Args:
+        exclude: Optional list of clip basenames (e.g. ["subwaysurfers.mp4"]) to skip.
+                 If all clips are excluded, falls back to the full list to avoid a crash.
+    """
     bg_dir = config.ASSETS_DIR / "backgrounds"
     exts   = ("**/*.mp4", "**/*.webm", "**/*.mov", "**/*.mkv")
     clips  = [p for ext in exts for p in bg_dir.glob(ext)
@@ -398,6 +409,16 @@ def _pick_background() -> str:
     if not clips:
         logger.error("No background clips found in %s", bg_dir)
         sys.exit(1)
+
+    if exclude:
+        filtered = [p for p in clips if p.name not in exclude]
+        if filtered:
+            clips = filtered
+        else:
+            logger.warning(
+                "_pick_background: all %d clips are excluded — allowing reuse", len(clips)
+            )
+
     chosen = random.choice(clips)
     logger.info("Selected background clip: %s", chosen.name)
     return str(chosen)

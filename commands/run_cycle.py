@@ -42,6 +42,7 @@ def cmd_run_cycle(channel_cfg, publish_at: str | None = None) -> None:
     from pipeline.backlog import (
         get_approved_stories, get_approved_tweets,
         mark_story_used, mark_used,
+        get_recent_backgrounds, log_background_use,
     )
     from pipeline.upload import (
         upload_to_youtube, upload_to_instagram,
@@ -101,7 +102,8 @@ def cmd_run_cycle(channel_cfg, publish_at: str | None = None) -> None:
                 logger.error("run-cycle: story generation failed for %s — aborting", slug)
                 return
 
-            background   = _pick_background()
+            recent_bgs   = get_recent_backgrounds(conn, slug, limit=5)
+            background   = _pick_background(exclude=recent_bgs)
             video_path   = _run_storytelling_pipeline(story["story_text"], background)
             content_text = story["story_text"]
 
@@ -195,10 +197,11 @@ def cmd_run_cycle(channel_cfg, publish_at: str | None = None) -> None:
                     ig_status = "failed"
 
         # ---------------------------------------------------------------
-        # Step 6: Mark item as used
+        # Step 6: Mark item as used (and log background for storytelling)
         # ---------------------------------------------------------------
         if fmt == "storytelling":
             mark_story_used(conn, row["id"])
+            log_background_use(conn, slug, Path(background).name)
         else:
             mark_used(conn, "backlog_tweets", row["tweet_id"])
         conn.commit()
