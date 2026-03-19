@@ -21,8 +21,10 @@ class TestChannelConfig(unittest.TestCase):
         # Write channels.yaml from the example file for the duration of each test
         self.channels_yaml = PROJECT_ROOT / "channels.yaml"
         self.channels_yaml.write_text(EXAMPLE_YAML)
-        # Reload config so it re-runs load_channels() with the fresh file
+        # Ensure we load the REAL config module, not a test mock injected by other test files
         import importlib
+        if "config" in sys.modules:
+            del sys.modules["config"]
         import config
         importlib.reload(config)
         self.config = config
@@ -30,6 +32,10 @@ class TestChannelConfig(unittest.TestCase):
     def tearDown(self):
         if self.channels_yaml.exists():
             self.channels_yaml.unlink()
+        # Remove real config from sys.modules so other tests that rely on mock config
+        # are not broken by a stale real config module left behind
+        if "config" in sys.modules and hasattr(sys.modules["config"], "__file__"):
+            del sys.modules["config"]
 
     def test_load_channels_returns_three_slugs(self):
         self.assertEqual(

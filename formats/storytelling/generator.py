@@ -330,3 +330,9 @@ def _validate(story: dict[str, Any]) -> None:
         raise ValueError(f"Story JSON missing keys: {missing}")
     if not story.get("story_text"):
         raise ValueError("story_text is empty")
+    story_text = story["story_text"]
+    for phrase in story.get("overlay_phrases", []):
+        if phrase not in story_text:
+            raise ValueError(
+                f"overlay_phrase {phrase!r} is not a substring of story_text"
+            )

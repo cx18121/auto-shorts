@@ -13,6 +13,15 @@ from unittest.mock import MagicMock, patch
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+# Mock config before any import that triggers config.py (which calls load_channels at import time)
+from unittest.mock import MagicMock as _MagicMock  # noqa: E402
+_mock_config = _MagicMock()
+_mock_config.ANTHROPIC_API_KEY = "test-api-key"
+_mock_config.CHANNELS = {}
+sys.modules.setdefault("config", _mock_config)
+# NOTE: Do NOT mock pipeline.claude_utils — it is a pure utility with no config dependency,
+# and generator.py binds parse_json from it at import time.
+
 # ---------------------------------------------------------------------------
 # Canned mock response for Anthropic API
 # ---------------------------------------------------------------------------
