@@ -30,7 +30,7 @@ _AUDIO_CODEC = "aac"
 _AUDIO_BR    = "192k"
 
 # Audio processing: speed up narration slightly and boost volume
-AUDIO_SPEED  = 1.4           # 40% faster playback
+AUDIO_SPEED  = 1.3           # 30% faster playback
 _AUDIO_VOLUME = "1.5"        # 50% volume boost
 
 
