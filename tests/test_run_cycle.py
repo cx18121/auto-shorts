@@ -1,5 +1,5 @@
 """
-tests/test_run_cycle.py — Unit tests for cmd_run_cycle and cmd_upload_history in main.py.
+tests/test_run_cycle.py — Unit tests for cmd_run_cycle and cmd_upload_history in commands/.
 
 Tests: disabled channel skip, empty backlog scrape fallback, storytelling run cycle flow,
 tweets run cycle flow, YouTube upload failure continues to Instagram, Instagram skip when
@@ -27,6 +27,22 @@ _mock_config.OUTPUT_DIR = Path("/tmp/test_output")
 _mock_config.ASSETS_DIR = Path("/tmp/test_assets")
 _mock_config.CHANNELS_DIR = Path("/tmp/test_channels")
 sys.modules.setdefault("config", _mock_config)
+
+# Mock commands sub-modules so importing commands.run_cycle does not trigger real config loading.
+# Do NOT mock "commands" itself — it needs to be the real package so submodule imports work.
+# Pre-inject mock versions of the sub-modules that commands.run_cycle imports at top level,
+# then immediately import commands.run_cycle to lock in those mocks, and restore real commands.scrape
+# so that cmd_upload_history tests can import the real function.
+sys.modules.setdefault("commands.generate", MagicMock())
+_commands_scrape_mock = MagicMock()
+sys.modules.setdefault("commands.scrape", _commands_scrape_mock)
+
+# Force-import commands.run_cycle now (with mocked deps) so all later test imports work
+import commands.run_cycle as _commands_run_cycle_mod  # noqa: E402
+
+# Restore real commands.scrape so cmd_upload_history tests get the real implementation
+if sys.modules.get("commands.scrape") is _commands_scrape_mock:
+    del sys.modules["commands.scrape"]
 
 # Also mock heavy pipeline imports that import config
 sys.modules.setdefault("pipeline.tts", MagicMock())
@@ -104,11 +120,11 @@ class TestDisabledChannel(unittest.TestCase):
     """run-cycle with enabled=False skips without action."""
 
     def test_disabled_channel_skips_and_returns(self):
-        from main import cmd_run_cycle
+        from commands.run_cycle import cmd_run_cycle
 
         cfg = _make_channel_cfg(enabled=False)
 
-        with patch("main.logger") as mock_logger:
+        with patch("commands.run_cycle.logger") as mock_logger:
             # Should return without calling any upstream APIs
             cmd_run_cycle(cfg)
 
@@ -118,7 +134,7 @@ class TestDisabledChannel(unittest.TestCase):
         self.assertIn("disabled", combined.lower())
 
     def test_disabled_channel_does_not_open_db(self):
-        from main import cmd_run_cycle
+        from commands.run_cycle import cmd_run_cycle
 
         cfg = _make_channel_cfg(enabled=False)
 
@@ -165,9 +181,9 @@ class TestEmptyBacklogFallback(unittest.TestCase):
         """)
         return conn
 
-    @patch("main.cmd_scrape")
+    @patch("commands.run_cycle.cmd_scrape")
     def test_calls_scrape_fallback_on_empty_backlog(self, mock_scrape):
-        from main import cmd_run_cycle
+        from commands.run_cycle import cmd_run_cycle
 
         cfg = _make_channel_cfg(fmt="storytelling")
         conn = self._make_conn()
@@ -179,9 +195,9 @@ class TestEmptyBacklogFallback(unittest.TestCase):
 
             mock_scrape.assert_called_once_with("reddit", "week", cfg)
 
-    @patch("main.cmd_scrape")
+    @patch("commands.run_cycle.cmd_scrape")
     def test_warns_and_returns_if_still_empty_after_fallback(self, mock_scrape):
-        from main import cmd_run_cycle
+        from commands.run_cycle import cmd_run_cycle
 
         cfg = _make_channel_cfg(fmt="storytelling")
         conn = self._make_conn()
@@ -189,16 +205,16 @@ class TestEmptyBacklogFallback(unittest.TestCase):
         with patch("analysis.db.get_connection", return_value=conn):
             with patch("pipeline.backlog.get_approved_stories", return_value=[]):
                 with patch("pipeline.upload.init_upload_table"):
-                    with patch("main.logger") as mock_logger:
+                    with patch("commands.run_cycle.logger") as mock_logger:
                         cmd_run_cycle(cfg)
 
                 logged = [str(c) for c in mock_logger.warning.call_args_list]
                 combined = " ".join(logged)
                 self.assertIn("no approved", combined.lower())
 
-    @patch("main.cmd_scrape")
+    @patch("commands.run_cycle.cmd_scrape")
     def test_tweets_empty_backlog_scrapes_tweets(self, mock_scrape):
-        from main import cmd_run_cycle
+        from commands.run_cycle import cmd_run_cycle
 
         cfg = _make_channel_cfg(fmt="tweets")
         conn = self._make_conn()
@@ -250,9 +266,9 @@ class TestRunCycleFlowStorytelling(unittest.TestCase):
         """)
         return conn
 
-    @patch("main.cmd_scrape")
+    @patch("commands.run_cycle.cmd_scrape")
     def test_storytelling_full_flow(self, mock_scrape):
-        from main import cmd_run_cycle
+        from commands.run_cycle import cmd_run_cycle
 
         cfg = _make_channel_cfg(fmt="storytelling", instagram_user_id="IG123")
         conn = self._make_conn()
@@ -268,6 +284,7 @@ class TestRunCycleFlowStorytelling(unittest.TestCase):
              patch("pipeline.backlog.get_approved_stories", return_value=[story_row]), \
              patch("pipeline.upload.init_upload_table"), \
              patch("pipeline.upload.log_upload") as mock_log_upload, \
+             patch("pipeline.upload.save_metadata_file"), \
              patch("pipeline.upload.generate_upload_metadata", return_value={
                  "title": "Test Title",
                  "hashtags": ["shorts", "viral"],
@@ -276,15 +293,15 @@ class TestRunCycleFlowStorytelling(unittest.TestCase):
              patch("pipeline.upload.upload_to_instagram", return_value="IG-MEDIA-001") as mock_ig, \
              patch("pipeline.upload.refresh_instagram_token_if_needed", return_value="IG_TOKEN"), \
              patch("pipeline.backlog.mark_story_used") as mock_mark, \
-             patch("main._generate_with_quality", return_value={"story_text": "Adapted story text here."}), \
+             patch("commands.run_cycle._generate_with_quality", return_value={"story_text": "Adapted story text here."}), \
              patch("formats.storytelling.generator.adapt_reddit_post", return_value={"story_text": "Adapted."}), \
-             patch("main._run_storytelling_pipeline", return_value="/tmp/output/final.mp4"), \
-             patch("main._pick_background", return_value="/tmp/bg.mp4"), \
+             patch("commands.run_cycle._run_storytelling_pipeline", return_value="/tmp/output/final.mp4"), \
+             patch("commands.run_cycle._pick_background", return_value="/tmp/bg.mp4"), \
              patch("pathlib.Path.exists", return_value=True), \
              patch("os.environ.get", return_value="https://example.com"):
 
             # Patch token path resolution
-            with patch("main.Path") as mock_path_cls:
+            with patch("commands.run_cycle.Path") as mock_path_cls:
                 mock_path = MagicMock(spec=Path)
                 mock_path.__truediv__ = lambda self, other: mock_path
                 mock_path.exists.return_value = True
@@ -297,7 +314,7 @@ class TestRunCycleFlowStorytelling(unittest.TestCase):
         mock_mark.assert_called_once()
 
     def test_marks_story_used_after_success(self):
-        from main import cmd_run_cycle
+        from commands.run_cycle import cmd_run_cycle
 
         cfg = _make_channel_cfg(fmt="storytelling", instagram_user_id="")
         conn = self._make_conn()
@@ -309,11 +326,11 @@ class TestRunCycleFlowStorytelling(unittest.TestCase):
              patch("pipeline.upload.generate_upload_metadata", return_value={"title": "T", "hashtags": []}), \
              patch("pipeline.upload.log_upload"), \
              patch("pipeline.backlog.mark_story_used") as mock_mark, \
-             patch("main._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
-             patch("main._generate_with_quality", return_value={"story_text": "Story."}), \
+             patch("commands.run_cycle._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
+             patch("commands.run_cycle._generate_with_quality", return_value={"story_text": "Story."}), \
              patch("formats.storytelling.generator.adapt_reddit_post", return_value={"story_text": "S."}), \
-             patch("main._pick_background", return_value="/tmp/bg.mp4"), \
-             patch("main.Path") as mock_path_cls:
+             patch("commands.run_cycle._pick_background", return_value="/tmp/bg.mp4"), \
+             patch("commands.run_cycle.Path") as mock_path_cls:
 
             mock_path = MagicMock(spec=Path)
             mock_path.__truediv__ = lambda self, other: mock_path
@@ -350,7 +367,7 @@ class TestRunCycleFlowTweets(unittest.TestCase):
         return conn
 
     def test_tweets_flow_marks_tweet_used(self):
-        from main import cmd_run_cycle
+        from commands.run_cycle import cmd_run_cycle
 
         cfg = _make_channel_cfg(fmt="tweets", instagram_user_id="")
         conn = self._make_conn()
@@ -362,10 +379,10 @@ class TestRunCycleFlowTweets(unittest.TestCase):
              patch("pipeline.upload.generate_upload_metadata", return_value={"title": "T", "hashtags": []}), \
              patch("pipeline.upload.log_upload"), \
              patch("pipeline.backlog.mark_used") as mock_mark, \
-             patch("main._run_tweet_pipeline", return_value="/tmp/tweet_final.mp4"), \
+             patch("commands.run_cycle._run_tweet_pipeline", return_value="/tmp/tweet_final.mp4"), \
              patch("formats.tweets.renderer.render_tweet", return_value="/tmp/tweet.png"), \
              patch("formats.tweets.assembler.assemble_tweet_video", return_value="/tmp/tweet_final.mp4"), \
-             patch("main.Path") as mock_path_cls:
+             patch("commands.run_cycle.Path") as mock_path_cls:
 
             mock_path = MagicMock(spec=Path)
             mock_path.__truediv__ = lambda self, other: mock_path
@@ -377,7 +394,7 @@ class TestRunCycleFlowTweets(unittest.TestCase):
         mock_mark.assert_called_once_with(unittest.mock.ANY, "backlog_tweets", tweet_row["tweet_id"])
 
     def test_tweets_flow_calls_run_tweet_pipeline(self):
-        from main import cmd_run_cycle
+        from commands.run_cycle import cmd_run_cycle
 
         cfg = _make_channel_cfg(fmt="tweets", instagram_user_id="")
         conn = self._make_conn()
@@ -389,8 +406,8 @@ class TestRunCycleFlowTweets(unittest.TestCase):
              patch("pipeline.upload.generate_upload_metadata", return_value={"title": "T", "hashtags": []}), \
              patch("pipeline.upload.log_upload"), \
              patch("pipeline.backlog.mark_used"), \
-             patch("main._run_tweet_pipeline", return_value="/tmp/tweet_final.mp4") as mock_pipeline, \
-             patch("main.Path") as mock_path_cls:
+             patch("commands.run_cycle._run_tweet_pipeline", return_value="/tmp/tweet_final.mp4") as mock_pipeline, \
+             patch("commands.run_cycle.Path") as mock_path_cls:
 
             mock_path = MagicMock(spec=Path)
             mock_path.__truediv__ = lambda self, other: mock_path
@@ -427,7 +444,7 @@ class TestYouTubeUploadFailContinues(unittest.TestCase):
         return conn
 
     def test_instagram_still_called_after_youtube_failure(self):
-        from main import cmd_run_cycle
+        from commands.run_cycle import cmd_run_cycle
 
         cfg = _make_channel_cfg(fmt="storytelling", instagram_user_id="IG_USER")
         conn = self._make_conn()
@@ -442,11 +459,11 @@ class TestYouTubeUploadFailContinues(unittest.TestCase):
              patch("pipeline.upload.upload_to_instagram", return_value="IG-001") as mock_ig, \
              patch("pipeline.upload.refresh_instagram_token_if_needed", return_value="IG_TOKEN"), \
              patch("pipeline.backlog.mark_story_used"), \
-             patch("main._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
-             patch("main._generate_with_quality", return_value={"story_text": "Story."}), \
+             patch("commands.run_cycle._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
+             patch("commands.run_cycle._generate_with_quality", return_value={"story_text": "Story."}), \
              patch("formats.storytelling.generator.adapt_reddit_post"), \
-             patch("main._pick_background", return_value="/tmp/bg.mp4"), \
-             patch("main.Path") as mock_path_cls, \
+             patch("commands.run_cycle._pick_background", return_value="/tmp/bg.mp4"), \
+             patch("commands.run_cycle.Path") as mock_path_cls, \
              patch.dict("os.environ", {"INSTAGRAM_PUBLIC_BASE_URL": "https://example.com"}):
 
             mock_path = MagicMock(spec=Path)
@@ -460,7 +477,7 @@ class TestYouTubeUploadFailContinues(unittest.TestCase):
         mock_ig.assert_called_once()
 
     def test_youtube_failure_logs_error_record(self):
-        from main import cmd_run_cycle
+        from commands.run_cycle import cmd_run_cycle
 
         cfg = _make_channel_cfg(fmt="storytelling", instagram_user_id="")
         conn = self._make_conn()
@@ -473,11 +490,11 @@ class TestYouTubeUploadFailContinues(unittest.TestCase):
              patch("pipeline.upload.log_upload") as mock_log, \
              patch("pipeline.upload.upload_to_youtube", side_effect=Exception("Upload error")), \
              patch("pipeline.backlog.mark_story_used"), \
-             patch("main._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
-             patch("main._generate_with_quality", return_value={"story_text": "S."}), \
+             patch("commands.run_cycle._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
+             patch("commands.run_cycle._generate_with_quality", return_value={"story_text": "S."}), \
              patch("formats.storytelling.generator.adapt_reddit_post"), \
-             patch("main._pick_background", return_value="/tmp/bg.mp4"), \
-             patch("main.Path") as mock_path_cls:
+             patch("commands.run_cycle._pick_background", return_value="/tmp/bg.mp4"), \
+             patch("commands.run_cycle.Path") as mock_path_cls:
 
             mock_path = MagicMock(spec=Path)
             mock_path.__truediv__ = lambda self, other: mock_path
@@ -520,7 +537,7 @@ class TestInstagramSkipNoConfig(unittest.TestCase):
         return conn
 
     def test_skips_instagram_when_user_id_empty(self):
-        from main import cmd_run_cycle
+        from commands.run_cycle import cmd_run_cycle
 
         cfg = _make_channel_cfg(fmt="storytelling", instagram_user_id="")
         conn = self._make_conn()
@@ -533,11 +550,11 @@ class TestInstagramSkipNoConfig(unittest.TestCase):
              patch("pipeline.upload.log_upload"), \
              patch("pipeline.upload.upload_to_instagram") as mock_ig, \
              patch("pipeline.backlog.mark_story_used"), \
-             patch("main._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
-             patch("main._generate_with_quality", return_value={"story_text": "S."}), \
+             patch("commands.run_cycle._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
+             patch("commands.run_cycle._generate_with_quality", return_value={"story_text": "S."}), \
              patch("formats.storytelling.generator.adapt_reddit_post"), \
-             patch("main._pick_background", return_value="/tmp/bg.mp4"), \
-             patch("main.Path") as mock_path_cls:
+             patch("commands.run_cycle._pick_background", return_value="/tmp/bg.mp4"), \
+             patch("commands.run_cycle.Path") as mock_path_cls:
 
             mock_path = MagicMock(spec=Path)
             mock_path.__truediv__ = lambda self, other: mock_path
@@ -549,7 +566,7 @@ class TestInstagramSkipNoConfig(unittest.TestCase):
         mock_ig.assert_not_called()
 
     def test_skips_instagram_when_token_file_missing(self):
-        from main import cmd_run_cycle
+        from commands.run_cycle import cmd_run_cycle
 
         cfg = _make_channel_cfg(fmt="storytelling", instagram_user_id="IG_USER")
         conn = self._make_conn()
@@ -562,11 +579,11 @@ class TestInstagramSkipNoConfig(unittest.TestCase):
              patch("pipeline.upload.log_upload"), \
              patch("pipeline.upload.upload_to_instagram") as mock_ig, \
              patch("pipeline.backlog.mark_story_used"), \
-             patch("main._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
-             patch("main._generate_with_quality", return_value={"story_text": "S."}), \
+             patch("commands.run_cycle._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
+             patch("commands.run_cycle._generate_with_quality", return_value={"story_text": "S."}), \
              patch("formats.storytelling.generator.adapt_reddit_post"), \
-             patch("main._pick_background", return_value="/tmp/bg.mp4"), \
-             patch("main.Path") as mock_path_cls:
+             patch("commands.run_cycle._pick_background", return_value="/tmp/bg.mp4"), \
+             patch("commands.run_cycle.Path") as mock_path_cls:
 
             mock_path = MagicMock(spec=Path)
             mock_path.__truediv__ = lambda self, other: mock_path
@@ -603,7 +620,7 @@ class TestYouTubeSkipNoToken(unittest.TestCase):
         return conn
 
     def test_skips_youtube_when_token_missing(self):
-        from main import cmd_run_cycle
+        from commands.run_cycle import cmd_run_cycle
 
         cfg = _make_channel_cfg(fmt="storytelling", instagram_user_id="")
         conn = self._make_conn()
@@ -616,11 +633,11 @@ class TestYouTubeSkipNoToken(unittest.TestCase):
              patch("pipeline.upload.log_upload"), \
              patch("pipeline.upload.upload_to_youtube") as mock_yt, \
              patch("pipeline.backlog.mark_story_used"), \
-             patch("main._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
-             patch("main._generate_with_quality", return_value={"story_text": "S."}), \
+             patch("commands.run_cycle._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
+             patch("commands.run_cycle._generate_with_quality", return_value={"story_text": "S."}), \
              patch("formats.storytelling.generator.adapt_reddit_post"), \
-             patch("main._pick_background", return_value="/tmp/bg.mp4"), \
-             patch("main.Path") as mock_path_cls:
+             patch("commands.run_cycle._pick_background", return_value="/tmp/bg.mp4"), \
+             patch("commands.run_cycle.Path") as mock_path_cls:
 
             mock_path = MagicMock(spec=Path)
             mock_path.__truediv__ = lambda self, other: mock_path
@@ -632,7 +649,7 @@ class TestYouTubeSkipNoToken(unittest.TestCase):
         mock_yt.assert_not_called()
 
     def test_logs_warning_when_youtube_token_missing(self):
-        from main import cmd_run_cycle
+        from commands.run_cycle import cmd_run_cycle
 
         cfg = _make_channel_cfg(fmt="storytelling", instagram_user_id="")
         conn = self._make_conn()
@@ -644,12 +661,12 @@ class TestYouTubeSkipNoToken(unittest.TestCase):
              patch("pipeline.upload.generate_upload_metadata", return_value={"title": "T", "hashtags": []}), \
              patch("pipeline.upload.log_upload"), \
              patch("pipeline.backlog.mark_story_used"), \
-             patch("main._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
-             patch("main._generate_with_quality", return_value={"story_text": "S."}), \
+             patch("commands.run_cycle._run_storytelling_pipeline", return_value="/tmp/final.mp4"), \
+             patch("commands.run_cycle._generate_with_quality", return_value={"story_text": "S."}), \
              patch("formats.storytelling.generator.adapt_reddit_post"), \
-             patch("main._pick_background", return_value="/tmp/bg.mp4"), \
-             patch("main.logger") as mock_logger, \
-             patch("main.Path") as mock_path_cls:
+             patch("commands.run_cycle._pick_background", return_value="/tmp/bg.mp4"), \
+             patch("commands.run_cycle.logger") as mock_logger, \
+             patch("commands.run_cycle.Path") as mock_path_cls:
 
             mock_path = MagicMock(spec=Path)
             mock_path.__truediv__ = lambda self, other: mock_path
@@ -697,7 +714,7 @@ class TestUploadHistory(unittest.TestCase):
         return conn
 
     def test_prints_upload_table(self):
-        from main import cmd_upload_history
+        from commands.scrape import cmd_upload_history
 
         cfg = _make_channel_cfg()
         conn = self._make_conn_with_data()
@@ -712,7 +729,7 @@ class TestUploadHistory(unittest.TestCase):
         self.assertIn("My First Video", output)
 
     def test_prints_no_records_message_when_empty(self):
-        from main import cmd_upload_history
+        from commands.scrape import cmd_upload_history
 
         cfg = _make_channel_cfg()
         conn = sqlite3.connect(":memory:")
@@ -738,7 +755,7 @@ class TestUploadHistory(unittest.TestCase):
         self.assertIsNotNone(output)  # should produce some output
 
     def test_respects_limit_parameter(self):
-        from main import cmd_upload_history
+        from commands.scrape import cmd_upload_history
 
         cfg = _make_channel_cfg()
         conn = self._make_conn_with_data()
