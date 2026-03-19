@@ -8,12 +8,23 @@ import unittest
 import tempfile
 import shutil
 from pathlib import Path
+from unittest.mock import MagicMock
 
 # Ensure project root is on path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 EXAMPLE_YAML = (PROJECT_ROOT / "channels.yaml.example").read_text()
+
+# Build the mock config that other test files (test_run_cycle, test_story_generator) rely on.
+# tearDown restores this after each test so config-mocked tests running AFTER this file still work.
+_SHARED_MOCK_CONFIG = MagicMock()
+_SHARED_MOCK_CONFIG.ANTHROPIC_API_KEY = "test-api-key"
+_SHARED_MOCK_CONFIG.OUTPUT_DIR = Path("/tmp/test_output")
+_SHARED_MOCK_CONFIG.ASSETS_DIR = Path("/tmp/test_assets")
+_SHARED_MOCK_CONFIG.CHANNELS_DIR = Path("/tmp/test_channels")
+_SHARED_MOCK_CONFIG.CHANNELS = {}
+
 
 class TestChannelConfig(unittest.TestCase):
 
@@ -32,10 +43,12 @@ class TestChannelConfig(unittest.TestCase):
     def tearDown(self):
         if self.channels_yaml.exists():
             self.channels_yaml.unlink()
-        # Remove real config from sys.modules so other tests that rely on mock config
-        # are not broken by a stale real config module left behind
-        if "config" in sys.modules and hasattr(sys.modules["config"], "__file__"):
+        # Remove the real config from sys.modules and restore the shared mock so that
+        # test files running after this one (test_run_cycle, test_story_generator) still
+        # find a mock config and do not trigger channels.yaml SystemExit.
+        if "config" in sys.modules:
             del sys.modules["config"]
+        sys.modules["config"] = _SHARED_MOCK_CONFIG
 
     def test_load_channels_returns_three_slugs(self):
         self.assertEqual(
