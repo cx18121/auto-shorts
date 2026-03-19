@@ -40,6 +40,9 @@ data/channels/*/instagram_token.json
 # Planning (local only)
 .planning/
 
+# Live channel config (contains real voice IDs — use channels.yaml.example as template)
+channels.yaml
+
 # OS
 .DS_Store
 Thumbs.db
