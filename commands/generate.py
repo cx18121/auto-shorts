@@ -38,6 +38,7 @@ def cmd_generate(
     pick: bool = False,
     no_audio: bool = False,
     keep_backlog: bool = False,
+    pick_background: bool = False,
 ) -> None:
     profile = None
     if profile_path:
@@ -53,13 +54,16 @@ def cmd_generate(
         logger.info("Generating %d %s video(s) (scrape mode)", count, fmt)
 
     if fmt == "storytelling":
+        background = _pick_background_interactive() if pick_background else _pick_background()
         if from_backlog:
             produced = _generate_storytelling_from_backlog(
                 count, channel_cfg, pick=pick,
                 no_audio=no_audio, keep_backlog=keep_backlog,
+                background=background,
             )
         else:
-            produced = _generate_storytelling(count, profile, profile_path, no_audio=no_audio)
+            produced = _generate_storytelling(count, profile, profile_path, no_audio=no_audio,
+                                              background=background)
     else:  # tweets
         if scrape:
             produced = _scrape_tweets(count, min_likes)
@@ -85,11 +89,13 @@ def _generate_storytelling(
     profile: dict,
     profile_path: str,
     no_audio: bool = False,
+    background: str | None = None,
 ) -> list[str]:
     from formats.storytelling.generator import generate_story
     from formats.storytelling.quality import check_quality
 
-    background = _pick_background()
+    if background is None:
+        background = _pick_background()
     produced: list[str] = []
 
     for i in range(count):
@@ -120,6 +126,7 @@ def _generate_storytelling_from_backlog(
     pick: bool = False,
     no_audio: bool = False,
     keep_backlog: bool = False,
+    background: str | None = None,
 ) -> list[str]:
     """Pull approved Reddit posts from the backlog and produce story videos."""
     from analysis.db import get_connection
@@ -144,7 +151,8 @@ def _generate_storytelling_from_backlog(
                 return []
 
         logger.info("Found %d approved story/stories in backlog for [%s]", len(rows), slug)
-        background = _pick_background()
+        if background is None:
+            background = _pick_background()
         produced: list[str] = []
 
         for i, row in enumerate(rows):
@@ -509,6 +517,42 @@ def _pick_background() -> str:
     chosen = random.choice(clips)
     logger.info("Selected background clip: %s", chosen.name)
     return str(chosen)
+
+
+def _pick_background_interactive() -> str:
+    """Show a numbered list of background clips and let the user choose one."""
+    bg_dir = config.ASSETS_DIR / "backgrounds"
+    exts   = ("**/*.mp4", "**/*.webm", "**/*.mov", "**/*.mkv")
+    clips  = sorted(
+        [p for ext in exts for p in bg_dir.glob(ext) if not p.name.endswith(".part")],
+        key=lambda p: p.name.lower(),
+    )
+    if not clips:
+        logger.error("No background clips found in %s", bg_dir)
+        sys.exit(1)
+
+    print("\nAvailable background clips:")
+    print("-" * 60)
+    for i, clip in enumerate(clips, 1):
+        # Show the parent folder name if the clip is in a subfolder
+        rel = clip.relative_to(bg_dir)
+        label = str(rel) if len(rel.parts) > 1 else clip.name
+        print(f"  {i}. {label}")
+    print()
+
+    while True:
+        try:
+            choice = input("Select background (enter number): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nNo selection made — choosing randomly.")
+            return _pick_background()
+
+        if choice.isdigit() and 1 <= int(choice) <= len(clips):
+            chosen = clips[int(choice) - 1]
+            logger.info("Selected background clip: %s", chosen.name)
+            return str(chosen)
+
+        print(f"Please enter a number between 1 and {len(clips)}.")
 
 
 def _save_video_metadata(

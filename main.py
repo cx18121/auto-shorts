@@ -71,6 +71,8 @@ def main() -> None:
                        help="Skip TTS — use silent audio for testing video layout")
     p_gen.add_argument("--keep-backlog", action="store_true",
                        help="Don't mark backlog items as used after production (for testing)")
+    p_gen.add_argument("--background", action="store_true",
+                       help="Interactively choose a background clip from assets/backgrounds/")
 
     # --- scrape ---
     p_scrape = sub.add_parser("scrape", help="Scrape content into the backlog")
@@ -165,6 +167,7 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg) -> None:
             pick=args.pick,
             no_audio=args.no_audio,
             keep_backlog=args.keep_backlog,
+            pick_background=args.background,
         )
 
     elif args.command == "scrape":
