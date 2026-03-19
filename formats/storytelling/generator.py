@@ -16,6 +16,7 @@ from typing import Any
 import anthropic
 
 import config
+from pipeline.claude_utils import parse_json as _parse_json_shared
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +141,7 @@ def generate_story(profile: dict[str, Any], feedback: str = "") -> dict[str, Any
                 messages=[{"role": "user", "content": prompt}],
             )
             text = resp.content[0].text.strip()
-            story = _parse_json(text)
+            story = _parse_json_shared(text)
             _validate(story)
             logger.info("Generated story: %r (est. %ds)",
                         story["title"], story.get("estimated_duration_seconds", 0))
@@ -225,7 +226,7 @@ def adapt_reddit_post(
                 messages=[{"role": "user", "content": prompt}],
             )
             text = resp.content[0].text.strip()
-            story = _parse_json(text)
+            story = _parse_json_shared(text)
             _validate(story)
             logger.info(
                 "Adapted Reddit post -> %r (est. %ds)",
@@ -321,16 +322,6 @@ def _build_reddit_prompt(
         post_body=post.get("body", ""),
         feedback_block=feedback_block,
     )
-
-
-def _parse_json(text: str) -> dict[str, Any]:
-    text = text.strip()
-    if text.startswith("```"):
-        parts = text.split("```")
-        text = parts[1] if len(parts) > 1 else text
-        if text.startswith("json"):
-            text = text[4:]
-    return json.loads(text.strip())
 
 
 def _validate(story: dict[str, Any]) -> None:

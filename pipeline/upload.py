@@ -30,6 +30,8 @@ from typing import Optional
 
 import anthropic
 import requests
+
+from pipeline.claude_utils import strip_markdown_fences
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -514,13 +516,7 @@ def generate_upload_metadata(
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
         )
-        raw_json = response.content[0].text.strip()
-        # Strip markdown code fences if present
-        if raw_json.startswith("```"):
-            raw_json = raw_json.split("```")[1]
-            if raw_json.startswith("json"):
-                raw_json = raw_json[4:]
-        ai_result = json.loads(raw_json.strip())
+        ai_result = json.loads(strip_markdown_fences(response.content[0].text))
     except Exception as exc:
         logger.error("generate_upload_metadata: Claude call failed: %s", exc)
         # Fallback title: truncate at last word boundary within 80 chars

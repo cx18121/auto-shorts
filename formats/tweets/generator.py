@@ -17,6 +17,7 @@ from typing import Any
 import anthropic
 
 import config
+from pipeline.claude_utils import parse_json as _parse_json_shared
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,7 @@ def generate_tweet(profile: dict[str, Any], feedback: str = "") -> dict[str, Any
                 messages=[{"role": "user", "content": prompt}],
             )
             text = resp.content[0].text.strip()
-            tweet = _parse_json(text)
+            tweet = _parse_json_shared(text)
             _validate(tweet)
             # Normalise engagement numbers
             tweet["likes"]    = int(tweet["likes"])
@@ -209,7 +210,7 @@ def _generate_one_thread(
                 messages=[{"role": "user", "content": prompt}],
             )
             text = resp.content[0].text.strip()
-            tweets = _parse_json(text)
+            tweets = _parse_json_shared(text)
             if isinstance(tweets, list):
                 for t in tweets:
                     _validate(t)
@@ -223,16 +224,6 @@ def _generate_one_thread(
             logger.warning("Thread gen attempt %d failed: %s", attempt, e)
             time.sleep(1)
     raise RuntimeError("Thread generation failed")
-
-
-def _parse_json(text: str) -> Any:
-    text = text.strip()
-    if text.startswith("```"):
-        parts = text.split("```")
-        text = parts[1] if len(parts) > 1 else text
-        if text.startswith("json"):
-            text = text[4:]
-    return json.loads(text.strip())
 
 
 def _validate(tweet: dict[str, Any]) -> None:

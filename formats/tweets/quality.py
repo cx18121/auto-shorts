@@ -13,12 +13,14 @@ from typing import Any
 import anthropic
 
 import config
+from pipeline.claude_utils import strip_markdown_fences
 
 logger = logging.getLogger(__name__)
 
 _MODEL          = "claude-sonnet-4-6"
 _TEMPERATURE    = 0.3
 _PASS_THRESHOLD = 7.0
+_MAX_RETRIES    = 3
 
 _SYSTEM_PROMPT = """\
 You are a quality evaluator for viral YouTube Shorts tweet screenshot content. \
@@ -78,7 +80,7 @@ def check_quality(tweet: dict[str, Any], profile: dict[str, Any]) -> dict[str, A
         threshold=_PASS_THRESHOLD,
     )
 
-    for attempt in range(1, 4):
+    for attempt in range(1, _MAX_RETRIES + 1):
         try:
             resp = client.messages.create(
                 model=_MODEL,
@@ -87,12 +89,8 @@ def check_quality(tweet: dict[str, Any], profile: dict[str, Any]) -> dict[str, A
                 system=_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": prompt}],
             )
-            text = resp.content[0].text.strip()
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
-            result = json.loads(text.strip())
+            text = strip_markdown_fences(resp.content[0].text)
+            result = json.loads(text)
             result["passed"] = float(result.get("overall", 0)) >= _PASS_THRESHOLD
             logger.info(
                 "Tweet quality: overall=%.1f  passed=%s  reason=%s",
@@ -101,12 +99,12 @@ def check_quality(tweet: dict[str, Any], profile: dict[str, Any]) -> dict[str, A
             return result
         except (json.JSONDecodeError, KeyError) as e:
             logger.warning("Tweet quality check attempt %d failed: %s", attempt, e)
-            if attempt == 3:
+            if attempt == _MAX_RETRIES:
                 return {"overall": 0.0, "passed": False, "reason": str(e)}
             time.sleep(1)
         except Exception as e:
             logger.warning("Claude quality call failed (attempt %d): %s", attempt, e)
-            if attempt == 3:
+            if attempt == _MAX_RETRIES:
                 return {"overall": 0.0, "passed": False, "reason": str(e)}
             time.sleep(2 ** attempt)
 

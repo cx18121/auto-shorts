@@ -8,11 +8,11 @@ Public API:
     assemble_tweet_video(image_path, audio_path, output_path, duration_seconds) -> str
 """
 
-import json
 import logging
 import random
-import subprocess
 from pathlib import Path
+
+from pipeline.ffmpeg_utils import probe_audio_duration, run_ffmpeg as _run_ffmpeg_shared
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ def assemble_tweet_video(
     out.parent.mkdir(parents=True, exist_ok=True)
 
     if duration_seconds is None:
-        duration_seconds = _probe_duration(aud)
+        duration_seconds = probe_audio_duration(aud)
 
     adjusted_duration = duration_seconds / AUDIO_SPEED + 0.5
     total_frames = int(adjusted_duration * _FPS)
@@ -82,7 +82,7 @@ def assemble_tweet_video(
 
     cmd = _build_cmd(img, aud, out, adjusted_duration, total_frames, music_path=music)
     logger.info("FFmpeg: %s", " ".join(cmd))
-    _run_ffmpeg(cmd)
+    _run_ffmpeg_shared(cmd)
 
     size_mb = out.stat().st_size / 1_048_576
     logger.info("Tweet video saved → %s (%.1f MB)", out, size_mb)
@@ -160,24 +160,3 @@ def _build_cmd(
         ]
 
 
-def _probe_duration(audio_path: Path) -> float:
-    result = subprocess.run(
-        ["ffprobe", "-v", "quiet", "-print_format", "json",
-         "-show_streams", "-select_streams", "a:0", str(audio_path)],
-        capture_output=True, text=True, check=True,
-    )
-    streams = json.loads(result.stdout).get("streams", [])
-    if not streams:
-        raise RuntimeError(f"No audio streams in {audio_path}")
-    return float(streams[0].get("duration", 0))
-
-
-def _run_ffmpeg(cmd: list[str]) -> None:
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-    except FileNotFoundError:
-        raise RuntimeError("ffmpeg not found") from None
-    if proc.returncode != 0:
-        stderr_tail = "\n".join(proc.stderr.splitlines()[-20:])
-        logger.error("FFmpeg failed (exit %d):\n%s", proc.returncode, stderr_tail)
-        raise RuntimeError(f"FFmpeg exited with code {proc.returncode}")

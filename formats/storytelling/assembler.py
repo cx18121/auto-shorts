@@ -10,11 +10,12 @@ Public API:
     assemble_split_video(background_path, audio_path, post_image_path, output_path, subtitles_path=None) -> str
 """
 
-import json
 import logging
 import random
 import subprocess
 from pathlib import Path
+
+from pipeline.ffmpeg_utils import probe_audio_duration, run_ffmpeg as _run_ffmpeg_shared
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ def assemble_video(
     out.parent.mkdir(parents=True, exist_ok=True)
 
     if duration_seconds is None:
-        duration_seconds = _probe_duration(aud)
+        duration_seconds = probe_audio_duration(aud)
 
     logger.info(
         "Assembling video | bg=%s | audio=%s | subs=%s | duration=%.2fs",
@@ -88,7 +89,7 @@ def assemble_video(
     cmd = _build_ffmpeg_cmd(bg, aud, subs, out, duration_seconds, bg_start=bg_start)
     logger.info("FFmpeg command:\n  %s", " ".join(cmd))
 
-    _run_ffmpeg(cmd)
+    _run_ffmpeg_shared(cmd)
 
     size_mb = out.stat().st_size / 1_048_576
     logger.info("Output saved → %s (%.1f MB)", out, size_mb)
@@ -164,34 +165,8 @@ def _escape_filter_path(path: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# ffprobe helper
+# ffprobe helpers
 # ---------------------------------------------------------------------------
-
-def _probe_duration(audio_path: Path) -> float:
-    """Return the duration of an audio file in seconds using ffprobe."""
-    logger.info("Probing audio duration: %s", audio_path)
-    result = subprocess.run(
-        [
-            "ffprobe",
-            "-v", "quiet",
-            "-print_format", "json",
-            "-show_streams",
-            "-select_streams", "a:0",
-            str(audio_path),
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    info = json.loads(result.stdout)
-    streams = info.get("streams", [])
-    if not streams:
-        raise RuntimeError(f"ffprobe found no audio streams in {audio_path}")
-
-    duration = float(streams[0].get("duration", 0))
-    logger.info("Probed duration: %.3fs", duration)
-    return duration
-
 
 def _probe_video_duration(video_path: Path) -> float:
     """Return the duration of a video file in seconds using ffprobe.
@@ -239,31 +214,6 @@ def _random_bg_start(bg_path: Path, required_duration: float) -> float:
     start = random.uniform(0, max_start)
     logger.info("Random background start: %.2fs (clip=%.2fs)", start, bg_duration)
     return start
-
-
-# ---------------------------------------------------------------------------
-# FFmpeg runner
-# ---------------------------------------------------------------------------
-
-def _run_ffmpeg(cmd: list[str]) -> None:
-    """Run an FFmpeg command, streaming stderr to the logger."""
-    try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-        )
-    except FileNotFoundError:
-        raise RuntimeError("ffmpeg not found — please install FFmpeg") from None
-
-    # FFmpeg writes progress to stderr even on success
-    if proc.returncode != 0:
-        # Log the tail of stderr to help debug
-        stderr_tail = "\n".join(proc.stderr.splitlines()[-20:])
-        logger.error("FFmpeg failed (exit %d):\n%s", proc.returncode, stderr_tail)
-        raise RuntimeError(f"FFmpeg exited with code {proc.returncode}")
-
-    logger.debug("FFmpeg stderr:\n%s", proc.stderr)
 
 
 # ---------------------------------------------------------------------------
@@ -318,7 +268,7 @@ def assemble_split_video(
     out.parent.mkdir(parents=True, exist_ok=True)
 
     if duration_seconds is None:
-        duration_seconds = _probe_duration(aud)
+        duration_seconds = probe_audio_duration(aud)
 
     logger.info(
         "Assembling split video | bg=%s | audio=%s | post=%s | subs=%s | duration=%.2fs",
@@ -328,7 +278,7 @@ def assemble_split_video(
 
     cmd = _build_split_ffmpeg_cmd(bg, aud, post, out, duration_seconds, subs)
     logger.info("FFmpeg command:\n  %s", " ".join(cmd))
-    _run_ffmpeg(cmd)
+    _run_ffmpeg_shared(cmd)
 
     size_mb = out.stat().st_size / 1_048_576
     logger.info("Output saved → %s (%.1f MB)", out, size_mb)

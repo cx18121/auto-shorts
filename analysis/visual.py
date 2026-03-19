@@ -21,6 +21,7 @@ import anthropic
 
 import config
 from analysis.db import get_connection
+from pipeline.claude_utils import strip_markdown_fences
 
 logger = logging.getLogger(__name__)
 
@@ -282,17 +283,11 @@ def _claude_call(client: anthropic.Anthropic, content: list[dict], max_attempts:
                 temperature=0.3,
                 messages=[{"role": "user", "content": content}],
             )
-            text = resp.content[0].text.strip()
-            # Strip markdown code fences if present
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
-            return json.loads(text)
+            return json.loads(strip_markdown_fences(resp.content[0].text))
         except json.JSONDecodeError as e:
             logger.warning("Claude returned invalid JSON (attempt %d): %s", attempt, e)
             if attempt == max_attempts:
-                return {"error": "invalid JSON from Claude", "raw": text[:200]}
+                return {"error": "invalid JSON from Claude", "raw": resp.content[0].text[:200]}
         except Exception as e:
             logger.warning("Claude vision call failed (attempt %d): %s", attempt, e)
             if attempt == max_attempts:

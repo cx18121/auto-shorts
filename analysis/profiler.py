@@ -17,6 +17,7 @@ import anthropic
 
 import config
 from analysis.db import get_connection
+from pipeline.claude_utils import strip_markdown_fences
 
 logger = logging.getLogger(__name__)
 
@@ -223,12 +224,7 @@ def _merge_batches(
     for attempt in range(1, 4):
         try:
             text = _claude_text_call(client, prompt, max_tokens=4096)
-            text = text.strip()
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
-            return json.loads(text)
+            return json.loads(strip_markdown_fences(text))
         except json.JSONDecodeError as e:
             logger.warning("Profile merge returned invalid JSON (attempt %d): %s", attempt, e)
             if attempt == 3:
