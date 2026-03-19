@@ -36,7 +36,7 @@ class TestChannelFlag(unittest.TestCase):
 
     def test_channel_flag_missing_causes_error(self):
         """--channel is required; omitting it must cause a non-zero exit."""
-        result = self._run(["analyze", "--channels", "http://example.com"])
+        result = self._run(["backlog-status"])
         self.assertNotEqual(result.returncode, 0,
             "Expected non-zero exit when --channel is omitted")
 
@@ -44,22 +44,19 @@ class TestChannelFlag(unittest.TestCase):
         """--channel relationships must be accepted (parse stage, not execution)."""
         # We check that the error is NOT an argparse error about --channel.
         # It will fail for other reasons (API keys, etc.) but not for --channel.
-        result = self._run(["--channel", "relationships", "analyze",
-                            "--channels", "http://example.com"])
+        result = self._run(["--channel", "relationships", "backlog-status"])
         # argparse should not complain about --channel
         self.assertNotIn("--channel", result.stderr.lower().replace("channel", ""),
             "argparse complained about --channel flag when it should be valid")
 
     def test_channel_flag_all_is_accepted(self):
         """--channel all must be accepted by argparse."""
-        result = self._run(["--channel", "all", "analyze",
-                            "--channels", "http://example.com"])
+        result = self._run(["--channel", "all", "backlog-status"])
         self.assertNotIn("error: argument --channel", result.stderr)
 
     def test_channel_flag_unknown_slug_causes_error(self):
         """--channel bogus-channel must cause a non-zero exit with clear message."""
-        result = self._run(["--channel", "bogus-channel", "analyze",
-                            "--channels", "http://example.com"])
+        result = self._run(["--channel", "bogus-channel", "backlog-status"])
         self.assertNotEqual(result.returncode, 0)
 
 

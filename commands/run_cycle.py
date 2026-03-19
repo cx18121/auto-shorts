@@ -39,7 +39,7 @@ def cmd_run_cycle(channel_cfg, publish_at: str | None = None) -> None:
         logger.info("Channel %s is disabled, skipping", slug)
         return
 
-    from analysis.db import get_connection
+    from pipeline.db import get_connection
     from pipeline.backlog import (
         get_approved_stories, get_approved_tweets,
         mark_story_used, mark_used,

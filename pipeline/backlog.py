@@ -5,7 +5,7 @@ Single source of truth for all state transitions on backlog_stories,
 backlog_tweets, and niche_state tables.
 
 Callers should pass an sqlite3.Connection (row_factory=sqlite3.Row).
-Use analysis.db.get_connection() for production or sqlite3.connect(':memory:')
+Use pipeline.db.get_connection() for production or sqlite3.connect(':memory:')
 for tests.
 """
 import logging
@@ -25,7 +25,7 @@ def init_backlog_tables(conn: sqlite3.Connection) -> None:
     """Create backlog_stories, backlog_tweets, and niche_state tables.
 
     Uses CREATE TABLE IF NOT EXISTS — safe to call on an existing DB.
-    This is the canonical DDL; analysis/db.py delegates here.
+    This is the canonical DDL; pipeline/db.py delegates here.
     """
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS backlog_stories (

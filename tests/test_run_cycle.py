@@ -138,7 +138,7 @@ class TestDisabledChannel(unittest.TestCase):
 
         cfg = _make_channel_cfg(enabled=False)
 
-        with patch("analysis.db.get_connection") as mock_conn:
+        with patch("pipeline.db.get_connection") as mock_conn:
             cmd_run_cycle(cfg)
             mock_conn.assert_not_called()
 
@@ -188,7 +188,7 @@ class TestEmptyBacklogFallback(unittest.TestCase):
         cfg = _make_channel_cfg(fmt="storytelling")
         conn = self._make_conn()
 
-        with patch("analysis.db.get_connection", return_value=conn):
+        with patch("pipeline.db.get_connection", return_value=conn):
             with patch("pipeline.backlog.get_approved_stories", return_value=[]) as mock_get:
                 with patch("pipeline.upload.init_upload_table"):
                     cmd_run_cycle(cfg)
@@ -202,7 +202,7 @@ class TestEmptyBacklogFallback(unittest.TestCase):
         cfg = _make_channel_cfg(fmt="storytelling")
         conn = self._make_conn()
 
-        with patch("analysis.db.get_connection", return_value=conn):
+        with patch("pipeline.db.get_connection", return_value=conn):
             with patch("pipeline.backlog.get_approved_stories", return_value=[]):
                 with patch("pipeline.upload.init_upload_table"):
                     with patch("commands.run_cycle.logger") as mock_logger:
@@ -234,7 +234,7 @@ class TestEmptyBacklogFallback(unittest.TestCase):
         );
         """)
 
-        with patch("analysis.db.get_connection", return_value=conn):
+        with patch("pipeline.db.get_connection", return_value=conn):
             with patch("pipeline.backlog.get_approved_tweets", return_value=[]):
                 with patch("pipeline.upload.init_upload_table"):
                     cmd_run_cycle(cfg)
@@ -280,7 +280,7 @@ class TestRunCycleFlowStorytelling(unittest.TestCase):
         ig_token = MagicMock(spec=Path)
         ig_token.exists.return_value = True
 
-        with patch("analysis.db.get_connection", return_value=conn), \
+        with patch("pipeline.db.get_connection", return_value=conn), \
              patch("pipeline.backlog.get_approved_stories", return_value=[story_row]), \
              patch("pipeline.upload.init_upload_table"), \
              patch("pipeline.upload.log_upload") as mock_log_upload, \
@@ -320,7 +320,7 @@ class TestRunCycleFlowStorytelling(unittest.TestCase):
         conn = self._make_conn()
         story_row = _make_story_row()
 
-        with patch("analysis.db.get_connection", return_value=conn), \
+        with patch("pipeline.db.get_connection", return_value=conn), \
              patch("pipeline.backlog.get_approved_stories", return_value=[story_row]), \
              patch("pipeline.upload.init_upload_table"), \
              patch("pipeline.upload.generate_upload_metadata", return_value={"title": "T", "hashtags": []}), \
@@ -373,7 +373,7 @@ class TestRunCycleFlowTweets(unittest.TestCase):
         conn = self._make_conn()
         tweet_row = _make_tweet_row()
 
-        with patch("analysis.db.get_connection", return_value=conn), \
+        with patch("pipeline.db.get_connection", return_value=conn), \
              patch("pipeline.backlog.get_approved_tweets", return_value=[tweet_row]), \
              patch("pipeline.upload.init_upload_table"), \
              patch("pipeline.upload.generate_upload_metadata", return_value={"title": "T", "hashtags": []}), \
@@ -400,7 +400,7 @@ class TestRunCycleFlowTweets(unittest.TestCase):
         conn = self._make_conn()
         tweet_row = _make_tweet_row()
 
-        with patch("analysis.db.get_connection", return_value=conn), \
+        with patch("pipeline.db.get_connection", return_value=conn), \
              patch("pipeline.backlog.get_approved_tweets", return_value=[tweet_row]), \
              patch("pipeline.upload.init_upload_table"), \
              patch("pipeline.upload.generate_upload_metadata", return_value={"title": "T", "hashtags": []}), \
@@ -450,7 +450,7 @@ class TestYouTubeUploadFailContinues(unittest.TestCase):
         conn = self._make_conn()
         story_row = _make_story_row()
 
-        with patch("analysis.db.get_connection", return_value=conn), \
+        with patch("pipeline.db.get_connection", return_value=conn), \
              patch("pipeline.backlog.get_approved_stories", return_value=[story_row]), \
              patch("pipeline.upload.init_upload_table"), \
              patch("pipeline.upload.generate_upload_metadata", return_value={"title": "T", "hashtags": []}), \
@@ -483,7 +483,7 @@ class TestYouTubeUploadFailContinues(unittest.TestCase):
         conn = self._make_conn()
         story_row = _make_story_row()
 
-        with patch("analysis.db.get_connection", return_value=conn), \
+        with patch("pipeline.db.get_connection", return_value=conn), \
              patch("pipeline.backlog.get_approved_stories", return_value=[story_row]), \
              patch("pipeline.upload.init_upload_table"), \
              patch("pipeline.upload.generate_upload_metadata", return_value={"title": "T", "hashtags": []}), \
@@ -543,7 +543,7 @@ class TestInstagramSkipNoConfig(unittest.TestCase):
         conn = self._make_conn()
         story_row = _make_story_row()
 
-        with patch("analysis.db.get_connection", return_value=conn), \
+        with patch("pipeline.db.get_connection", return_value=conn), \
              patch("pipeline.backlog.get_approved_stories", return_value=[story_row]), \
              patch("pipeline.upload.init_upload_table"), \
              patch("pipeline.upload.generate_upload_metadata", return_value={"title": "T", "hashtags": []}), \
@@ -572,7 +572,7 @@ class TestInstagramSkipNoConfig(unittest.TestCase):
         conn = self._make_conn()
         story_row = _make_story_row()
 
-        with patch("analysis.db.get_connection", return_value=conn), \
+        with patch("pipeline.db.get_connection", return_value=conn), \
              patch("pipeline.backlog.get_approved_stories", return_value=[story_row]), \
              patch("pipeline.upload.init_upload_table"), \
              patch("pipeline.upload.generate_upload_metadata", return_value={"title": "T", "hashtags": []}), \
@@ -626,7 +626,7 @@ class TestYouTubeSkipNoToken(unittest.TestCase):
         conn = self._make_conn()
         story_row = _make_story_row()
 
-        with patch("analysis.db.get_connection", return_value=conn), \
+        with patch("pipeline.db.get_connection", return_value=conn), \
              patch("pipeline.backlog.get_approved_stories", return_value=[story_row]), \
              patch("pipeline.upload.init_upload_table"), \
              patch("pipeline.upload.generate_upload_metadata", return_value={"title": "T", "hashtags": []}), \
@@ -655,7 +655,7 @@ class TestYouTubeSkipNoToken(unittest.TestCase):
         conn = self._make_conn()
         story_row = _make_story_row()
 
-        with patch("analysis.db.get_connection", return_value=conn), \
+        with patch("pipeline.db.get_connection", return_value=conn), \
              patch("pipeline.backlog.get_approved_stories", return_value=[story_row]), \
              patch("pipeline.upload.init_upload_table"), \
              patch("pipeline.upload.generate_upload_metadata", return_value={"title": "T", "hashtags": []}), \
@@ -719,7 +719,7 @@ class TestUploadHistory(unittest.TestCase):
         cfg = _make_channel_cfg()
         conn = self._make_conn_with_data()
 
-        with patch("analysis.db.get_connection", return_value=conn):
+        with patch("pipeline.db.get_connection", return_value=conn):
             with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
                 cmd_upload_history(cfg, limit=20)
                 output = mock_stdout.getvalue()
@@ -747,7 +747,7 @@ class TestUploadHistory(unittest.TestCase):
         );
         """)
 
-        with patch("analysis.db.get_connection", return_value=conn):
+        with patch("pipeline.db.get_connection", return_value=conn):
             with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
                 cmd_upload_history(cfg, limit=20)
                 output = mock_stdout.getvalue()
@@ -768,7 +768,7 @@ class TestUploadHistory(unittest.TestCase):
             )
         conn.commit()
 
-        with patch("analysis.db.get_connection", return_value=conn):
+        with patch("pipeline.db.get_connection", return_value=conn):
             with patch("pipeline.upload.get_upload_history", wraps=None) as mock_hist:
                 mock_hist.return_value = []
                 cmd_upload_history(cfg, limit=5)

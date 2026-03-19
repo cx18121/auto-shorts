@@ -180,7 +180,7 @@ def scrape_and_store_reddit(
     Returns:
         Summary dict: {"scraped": int, "passed": int, "inserted": int, "duplicates": int}
     """
-    from analysis.db import get_connection
+    from pipeline.db import get_connection
     from pipeline.backlog import insert_story, init_backlog_tables
     from pipeline.quality_filter import passes_story_quality
 

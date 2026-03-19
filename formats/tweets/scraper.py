@@ -583,7 +583,7 @@ def scrape_and_store_tweets(
 
     _owns_conn = _conn is None
     if _owns_conn:
-        from analysis.db import get_connection
+        from pipeline.db import get_connection
         _conn = get_connection()
 
     try:

@@ -28,7 +28,7 @@ def cmd_scrape(fmt: str, window: str, channel_cfg) -> None:
 
 def cmd_backlog_status(channel_cfg=None) -> None:
     """Print backlog counts. channel_cfg=None means all channels."""
-    from analysis.db import get_connection
+    from pipeline.db import get_connection
     from pipeline.backlog import get_status_counts
 
     conn = get_connection()
@@ -50,7 +50,7 @@ def cmd_backlog_status(channel_cfg=None) -> None:
 
 def cmd_upload_history(channel_cfg, limit: int = 20) -> None:
     """Print a formatted table of recent uploads for the given channel."""
-    from analysis.db import get_connection
+    from pipeline.db import get_connection
     from pipeline.upload import get_upload_history
 
     conn = get_connection()

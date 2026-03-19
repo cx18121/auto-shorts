@@ -72,7 +72,7 @@ def _ai_review_item(item: dict, source_label: str, channel_cfg) -> tuple[str, st
 
 def cmd_review(channel_cfg, ai: bool = False) -> None:
     """Review pending backlog items — interactively or via Claude (--ai)."""
-    from analysis.db import get_connection
+    from pipeline.db import get_connection
     from pipeline.backlog import (
         get_pending_stories, get_pending_tweets,
         approve_item, reject_item, get_probation_remaining,

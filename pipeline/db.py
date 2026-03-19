@@ -1,5 +1,5 @@
 """
-analysis/db.py — SQLite schema initialisation and connection helper.
+pipeline/db.py — SQLite schema initialisation and connection helper.
 """
 
 import sqlite3
@@ -60,16 +60,6 @@ def init_db() -> None:
             -- analysis JSON blobs
             visual_analysis         TEXT,
             thumbnail_analysis      TEXT,
-            FOREIGN KEY (channel_id) REFERENCES channels(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS style_profiles (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            channel_id  TEXT,
-            name        TEXT,
-            format      TEXT,
-            profile_json TEXT,
-            created_at  TEXT,
             FOREIGN KEY (channel_id) REFERENCES channels(id)
         );
         """)

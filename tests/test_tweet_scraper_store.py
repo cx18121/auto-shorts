@@ -18,7 +18,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # scrape_and_store_tweets is imported at test time (not module level) to avoid
-# triggering channels.yaml requirement from analysis.db -> config.py chain.
+# triggering channels.yaml requirement from pipeline.db -> config.py chain.
 
 
 def _make_channel_cfg(

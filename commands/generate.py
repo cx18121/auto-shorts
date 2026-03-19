@@ -129,7 +129,7 @@ def _generate_storytelling_from_backlog(
     background: str | None = None,
 ) -> list[str]:
     """Pull approved Reddit posts from the backlog and produce story videos."""
-    from analysis.db import get_connection
+    from pipeline.db import get_connection
     from pipeline.backlog import get_approved_stories, mark_story_used
     from formats.storytelling.generator import adapt_reddit_post
     from formats.storytelling.quality import check_quality
@@ -253,7 +253,7 @@ def _generate_tweets_from_backlog(
     keep_backlog: bool = False,
 ) -> list[str]:
     """Pull approved tweets from the backlog and produce tweet videos."""
-    from analysis.db import get_connection
+    from pipeline.db import get_connection
     from pipeline.backlog import get_approved_tweets, mark_used
     from formats.tweets.renderer import render_tweet
     from formats.tweets.assembler import assemble_tweet_video
