@@ -45,7 +45,7 @@ def cmd_generate(
         logger.info("Generating %d %s video(s) (scrape mode)", count, fmt)
 
     if fmt == "storytelling":
-        background = _pick_background_interactive() if pick_background else _pick_background()
+        background = _pick_background_interactive() if pick_background else None
         produced = _generate_storytelling_from_backlog(
             count, channel_cfg, pick=pick,
             no_audio=no_audio, keep_backlog=keep_backlog,
@@ -101,9 +101,8 @@ def _generate_storytelling_from_backlog(
                 return []
 
         logger.info("Found %d approved story/stories in backlog for [%s]", len(rows), slug)
-        if background is None:
-            recent = get_recent_backgrounds(conn, slug, limit=5)
-            background = _pick_background(exclude=recent)
+        # batch_used tracks backgrounds chosen during this run so each video gets a unique clip
+        batch_used: list[str] = []
         produced: list[str] = []
 
         for i, row in enumerate(rows):
@@ -129,7 +128,16 @@ def _generate_storytelling_from_backlog(
                 logger.error("Backlog story %d rejected after all retries, skipping", i + 1)
                 continue
 
-            video_path = _run_storytelling_pipeline(story["story_text"], background, no_audio=no_audio)
+            # Per-video background selection: use the override if provided (--pick-background),
+            # otherwise pick a fresh clip excluding DB-tracked recent + within-batch used clips.
+            if background is not None:
+                video_bg = background
+            else:
+                recent = get_recent_backgrounds(conn, slug, limit=5)
+                exclude = list(dict.fromkeys(recent + batch_used))  # dedup, preserve order
+                video_bg = _pick_background(exclude=exclude)
+
+            video_path = _run_storytelling_pipeline(story["story_text"], video_bg, no_audio=no_audio)
             if video_path:
                 _save_video_metadata(
                     video_path, story["story_text"], "storytelling",
@@ -138,8 +146,9 @@ def _generate_storytelling_from_backlog(
                 if not keep_backlog:
                     mark_story_used(conn, row["id"])
                     conn.commit()
-                log_background_use(conn, slug, Path(background).name)
+                log_background_use(conn, slug, Path(video_bg).name)
                 conn.commit()
+                batch_used.append(Path(video_bg).name)
                 produced.append(video_path)
                 logger.info("Backlog story %d done → %s", len(produced), video_path)
 
