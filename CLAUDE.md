@@ -103,6 +103,14 @@ python main.py --channel hypothetical-scenarios review --ai   # Claude auto-revi
 python main.py --channel hypothetical-scenarios generate --format storytelling --from-backlog --count 3
 python main.py --channel finance-hustle generate --format tweets --from-backlog --count 3
 
+# Background selection (storytelling only)
+python main.py --channel hypothetical-scenarios generate --format storytelling --from-backlog --background
+# ^ interactive: pick ONE clip from numbered list; all videos in the batch use it
+
+python main.py --channel hypothetical-scenarios generate --format storytelling --from-backlog --multi-bg
+# ^ interactive: pick MULTIPLE clips (e.g. "1,3"); TTS+captions generated once,
+#   one output video per clip (final_bg1.mp4, final_bg2.mp4, ...) in the same run dir
+
 # Generate tweet videos from real scraped tweets (bypasses backlog)
 python main.py --channel finance-hustle generate --format tweets --scrape --count 3
 python main.py --channel finance-hustle generate --format tweets --scrape --count 3 --min-likes 1000

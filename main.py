@@ -61,9 +61,9 @@ def main() -> None:
     p_gen.add_argument("--keep-backlog", action="store_true",
                        help="Don't mark backlog items as used after production (for testing)")
     p_gen.add_argument("--background", action="store_true",
-                       help="Interactively choose a background clip from assets/backgrounds/")
+                       help="Interactively pick ONE background clip; all videos in the batch use it (storytelling only)")
     p_gen.add_argument("--multi-bg", action="store_true",
-                       help="Pick multiple backgrounds; TTS once, assemble per background (storytelling only)")
+                       help="Interactively pick MULTIPLE backgrounds; TTS+captions generated once, one output video per clip — final_bg1.mp4, final_bg2.mp4, ... (storytelling only; overrides --background)")
 
     # --- scrape ---
     p_scrape = sub.add_parser("scrape", help="Scrape content into the backlog")
