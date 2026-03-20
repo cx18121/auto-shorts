@@ -123,7 +123,7 @@ def _build_ffmpeg_cmd(
     fonts_escaped = _escape_filter_path(_FONTS_DIR)
     adjusted_duration = duration / AUDIO_SPEED + 0.5
 
-    vf_chain = f"crop=ih*9/16:ih,scale=1080:1920,ass={ass_escaped}:fontsdir={fonts_escaped}"
+    vf_chain = f"scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,ass={ass_escaped}:fontsdir={fonts_escaped}"
     fc = (
         f"[0:v]{vf_chain}[vout];"
         f"[1:a]atempo={AUDIO_SPEED},volume={_AUDIO_VOLUME}[narr];"
