@@ -62,6 +62,8 @@ def main() -> None:
                        help="Don't mark backlog items as used after production (for testing)")
     p_gen.add_argument("--background", action="store_true",
                        help="Interactively choose a background clip from assets/backgrounds/")
+    p_gen.add_argument("--multi-bg", action="store_true",
+                       help="Pick multiple backgrounds; TTS once, assemble per background (storytelling only)")
 
     # --- scrape ---
     p_scrape = sub.add_parser("scrape", help="Scrape content into the backlog")
@@ -146,6 +148,8 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg) -> None:
         if not args.scrape and not args.from_backlog:
             logger.error("--scrape or --from-backlog is required for generate command")
             sys.exit(1)
+        # --multi-bg wins over --background when both are set
+        pick_bg = args.background and not args.multi_bg
         cmd_generate(
             args.format, args.count,
             args.thread,
@@ -156,7 +160,8 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg) -> None:
             pick=args.pick,
             no_audio=args.no_audio,
             keep_backlog=args.keep_backlog,
-            pick_background=args.background,
+            pick_background=pick_bg,
+            multi_bg=args.multi_bg,
         )
 
     elif args.command == "scrape":

@@ -38,6 +38,7 @@ def cmd_generate(
     no_audio: bool = False,
     keep_backlog: bool = False,
     pick_background: bool = False,
+    multi_bg: bool = False,
 ) -> None:
     if from_backlog:
         logger.info("Generating %d %s video(s) from backlog", count, fmt)
@@ -45,13 +46,23 @@ def cmd_generate(
         logger.info("Generating %d %s video(s) (scrape mode)", count, fmt)
 
     if fmt == "storytelling":
-        background = _pick_background_interactive() if pick_background else None
-        produced = _generate_storytelling_from_backlog(
-            count, channel_cfg, pick=pick,
-            no_audio=no_audio, keep_backlog=keep_backlog,
-            background=background,
-        )
+        if multi_bg:
+            backgrounds = _pick_backgrounds_interactive()
+            produced = _generate_storytelling_from_backlog(
+                count, channel_cfg, pick=pick,
+                no_audio=no_audio, keep_backlog=keep_backlog,
+                backgrounds=backgrounds,
+            )
+        else:
+            background = _pick_background_interactive() if pick_background else None
+            produced = _generate_storytelling_from_backlog(
+                count, channel_cfg, pick=pick,
+                no_audio=no_audio, keep_backlog=keep_backlog,
+                background=background,
+            )
     else:  # tweets
+        if multi_bg:
+            logger.warning("--multi-bg is only supported for storytelling format; ignoring for tweets")
         if scrape:
             produced = _scrape_tweets(count, min_likes)
         else:
@@ -76,8 +87,14 @@ def _generate_storytelling_from_backlog(
     no_audio: bool = False,
     keep_backlog: bool = False,
     background: str | None = None,
+    backgrounds: list[str] | None = None,
 ) -> list[str]:
-    """Pull approved Reddit posts from the backlog and produce story videos."""
+    """Pull approved Reddit posts from the backlog and produce story videos.
+
+    When `backgrounds` is provided (--multi-bg mode), TTS and subtitles are
+    generated once per story, then one video is assembled per background. All
+    variant paths are added to `produced`. Only one backlog item is consumed.
+    """
     from pipeline.db import get_connection
     from pipeline.backlog import (
         get_approved_stories, mark_story_used,
@@ -128,29 +145,51 @@ def _generate_storytelling_from_backlog(
                 logger.error("Backlog story %d rejected after all retries, skipping", i + 1)
                 continue
 
-            # Per-video background selection: use the override if provided (--pick-background),
-            # otherwise pick a fresh clip excluding DB-tracked recent + within-batch used clips.
-            if background is not None:
-                video_bg = background
-            else:
-                recent = get_recent_backgrounds(conn, slug, limit=5)
-                exclude = list(dict.fromkeys(recent + batch_used))  # dedup, preserve order
-                video_bg = _pick_background(exclude=exclude)
-
-            video_path = _run_storytelling_pipeline(story["story_text"], video_bg, no_audio=no_audio)
-            if video_path:
-                _save_video_metadata(
-                    video_path, story["story_text"], "storytelling",
-                    channel_cfg.hashtags if channel_cfg else [],
+            if backgrounds is not None:
+                # Multi-bg mode: TTS once, assemble one video per background
+                video_paths = _assemble_multi_bg(
+                    story["story_text"], backgrounds, no_audio, channel_cfg
                 )
+                for video_path in video_paths:
+                    _save_video_metadata(
+                        video_path, story["story_text"], "storytelling",
+                        channel_cfg.hashtags if channel_cfg else [],
+                    )
                 if not keep_backlog:
                     mark_story_used(conn, row["id"])
                     conn.commit()
-                log_background_use(conn, slug, Path(video_bg).name)
+                for bg in backgrounds:
+                    log_background_use(conn, slug, Path(bg).name)
                 conn.commit()
-                batch_used.append(Path(video_bg).name)
-                produced.append(video_path)
-                logger.info("Backlog story %d done → %s", len(produced), video_path)
+                produced.extend(video_paths)
+                logger.info(
+                    "Backlog story %d done → %d variant(s)", len(produced), len(video_paths)
+                )
+            else:
+                # Single-bg mode: per-video background selection
+                if background is not None:
+                    video_bg = background
+                else:
+                    recent = get_recent_backgrounds(conn, slug, limit=5)
+                    exclude = list(dict.fromkeys(recent + batch_used))  # dedup, preserve order
+                    video_bg = _pick_background(exclude=exclude)
+
+                video_path = _run_storytelling_pipeline(
+                    story["story_text"], video_bg, no_audio=no_audio
+                )
+                if video_path:
+                    _save_video_metadata(
+                        video_path, story["story_text"], "storytelling",
+                        channel_cfg.hashtags if channel_cfg else [],
+                    )
+                    if not keep_backlog:
+                        mark_story_used(conn, row["id"])
+                        conn.commit()
+                    log_background_use(conn, slug, Path(video_bg).name)
+                    conn.commit()
+                    batch_used.append(Path(video_bg).name)
+                    produced.append(video_path)
+                    logger.info("Backlog story %d done → %s", len(produced), video_path)
 
         return produced
     finally:
@@ -467,6 +506,118 @@ def _pick_background_interactive() -> str:
             return str(chosen)
 
         print(f"Please enter a number between 1 and {len(clips)}.")
+
+
+def _pick_backgrounds_interactive() -> list[str]:
+    """Show a numbered list of background clips and let the user choose multiple.
+
+    Returns a list of selected background paths (>= 2). Exits with an error
+    message if the user selects fewer than 2 backgrounds.
+    """
+    bg_dir = config.ASSETS_DIR / "backgrounds"
+    exts   = ("**/*.mp4", "**/*.webm", "**/*.mov", "**/*.mkv")
+    clips  = sorted(
+        [p for ext in exts for p in bg_dir.glob(ext) if not p.name.endswith(".part")],
+        key=lambda p: p.name.lower(),
+    )
+    if not clips:
+        logger.error("No background clips found in %s", bg_dir)
+        sys.exit(1)
+
+    print("\nAvailable background clips:")
+    print("-" * 60)
+    for i, clip in enumerate(clips, 1):
+        rel = clip.relative_to(bg_dir)
+        label = str(rel) if len(rel.parts) > 1 else clip.name
+        print(f"  {i}. {label}")
+    print()
+
+    try:
+        raw = input("Select backgrounds (comma-separated, e.g. 1,3,5): ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print("\nNo selection made.")
+        sys.exit(1)
+
+    selected: list[str] = []
+    seen: set[int] = set()
+    for part in raw.split(","):
+        part = part.strip()
+        if part.isdigit():
+            idx = int(part) - 1
+            if 0 <= idx < len(clips) and idx not in seen:
+                seen.add(idx)
+                selected.append(str(clips[idx]))
+
+    if len(selected) < 2:
+        print("Use --background for single selection. --multi-bg requires >= 2 backgrounds.")
+        sys.exit(1)
+
+    logger.info("Multi-bg: selected %d background(s)", len(selected))
+    return selected
+
+
+def _assemble_multi_bg(
+    story_text: str,
+    backgrounds: list[str],
+    no_audio: bool,
+    channel_cfg,
+) -> list[str]:
+    """Generate TTS + subtitles once, then assemble one video per background.
+
+    Args:
+        story_text:  Narration text for TTS.
+        backgrounds: List of background clip paths (one output per entry).
+        no_audio:    When True, generate silent audio instead of calling ElevenLabs.
+        channel_cfg: Channel configuration (unused here but available for future use).
+
+    Returns:
+        List of successfully assembled output paths (may be shorter than `backgrounds`
+        if some assemblies fail — errors are logged and skipped).
+    """
+    from pipeline.tts import generate_tts
+    from pipeline.overlay import generate_ass
+    from formats.storytelling.assembler import assemble_video, AUDIO_SPEED
+
+    run_id  = int(time.time())
+    workdir = config.OUTPUT_DIR / str(run_id)
+    workdir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        if no_audio:
+            logger.info("[multi-bg 1/3] Generating silent audio (--no-audio)…")
+            tts = _generate_silent_audio(str(workdir))
+        else:
+            logger.info("[multi-bg 1/3] TTS (once for all backgrounds)…")
+            tts = generate_tts(story_text, str(workdir))
+
+        logger.info("[multi-bg 2/3] Subtitles…")
+        subs = generate_ass(
+            tts["timestamps_path"],
+            str(workdir / "subtitles.ass"),
+            speed_factor=AUDIO_SPEED,
+        )
+    except Exception as e:
+        logger.error("Multi-bg: TTS/subtitle step failed: %s", e)
+        return []
+
+    logger.info("[multi-bg 3/3] Assembling %d video variant(s)…", len(backgrounds))
+    outputs: list[str] = []
+    for i, bg in enumerate(backgrounds, 1):
+        output_path = str(workdir / f"final_bg{i}.mp4")
+        try:
+            out = assemble_video(
+                background_path=bg,
+                audio_path=tts["audio_path"],
+                subtitles_path=subs,
+                output_path=output_path,
+                duration_seconds=tts["duration_seconds"],
+            )
+            outputs.append(out)
+            logger.info("  bg%d assembled → %s", i, out)
+        except Exception as e:
+            logger.error("  bg%d assembly failed (%s): %s", i, Path(bg).name, e)
+
+    return outputs
 
 
 def _save_video_metadata(
