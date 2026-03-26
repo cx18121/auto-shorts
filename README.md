@@ -29,7 +29,7 @@ Use `--channel all` to run across all channels.
 
 ## Setup
 
-### .env File
+### .env
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
@@ -73,101 +73,89 @@ hypothetical-scenarios:
 
 ## Commands
 
-### Scrape — Fill the backlog
+### `scrape` — Fill the backlog
 
-```bash
-python main.py --channel my-channel scrape --format reddit
-python main.py --channel my-channel scrape --format tweets
-python main.py --channel my-channel scrape --format reddit --window month   # grab a month of posts
-python main.py --channel my-channel scrape --format reddit --review         # scrape then review immediately
+```
+python main.py --channel SLUG scrape --format FORMAT [options]
 ```
 
-### Review — Approve or reject pending items
+| Option | Description |
+|--------|-------------|
+| `--format reddit\|tweets` | Content source |
+| `--window 24h\|week\|month\|year` | How far back to look (default: 24h) |
+| `--review` | Open review prompt immediately after scraping |
 
-```bash
-python main.py --channel my-channel review
+### `review` — Approve or reject pending items
+
+```
+python main.py --channel SLUG review [--ai]
 ```
 
-Type `y` to approve, `n` to reject, `s` to skip. After 25 manual reviews, new items are auto-approved.
+| Option | Description |
+|--------|-------------|
+| `--ai` | Auto-review with Claude instead of manual prompts |
 
-### Backlog Status — See what's in the queue
+Keys: `y` approve · `n` reject · `s` skip. After 25 manual approvals, new items are auto-approved.
 
-```bash
-python main.py --channel my-channel backlog-status
-python main.py --channel all backlog-status
+### `backlog-status` — See what's in the queue
+
+```
+python main.py --channel SLUG backlog-status
 ```
 
-### Generate — Make videos
+### `generate` — Make videos
 
-```bash
-# From approved backlog items (most common)
-python main.py --channel my-channel generate --format storytelling --from-backlog
-python main.py --channel my-channel generate --format storytelling --from-backlog --count 3
-python main.py --channel my-channel generate --format storytelling --from-backlog --pick       # choose which story
-python main.py --channel my-channel generate --format storytelling --from-backlog --no-audio   # test layout without TTS
-python main.py --channel my-channel generate --format storytelling --from-backlog --keep-backlog  # don't mark as used
-
-# Background selection
-python main.py --channel my-channel generate --format storytelling --from-backlog --background
-# ^ interactive: pick ONE clip from numbered list; all videos in the batch use it
-
-python main.py --channel my-channel generate --format storytelling --from-backlog --multi-bg
-# ^ interactive: pick MULTIPLE clips (e.g. "1,3"); one output video per clip in the same run dir
-
-# Tweet videos
-python main.py --channel my-channel generate --format tweets --scrape --count 3
-python main.py --channel my-channel generate --format tweets --scrape --count 3 --min-likes 1000
-python main.py --channel my-channel generate --format tweets --from-backlog --count 3
+```
+python main.py --channel SLUG generate --format FORMAT [options]
 ```
 
-### Run Cycle — Full automated posting
+| Option | Description |
+|--------|-------------|
+| `--format storytelling\|tweets` | Video format |
+| `--from-backlog` | Pull from approved backlog items |
+| `--scrape` | Scrape fresh content instead of using backlog (tweets only) |
+| `--count N` | Number of videos to generate (default: 1) |
+| `--pick` | Interactively choose which backlog story to use |
+| `--background` | Pick a single background clip for the whole batch |
+| `--multi-bg` | Pick multiple clips; outputs one video per clip |
+| `--no-audio` | Skip TTS — useful for testing layout |
+| `--keep-backlog` | Don't mark items as used after generating |
+| `--min-likes N` | Minimum likes filter when scraping tweets |
 
-Pulls from backlog, generates a video, uploads to YouTube + Instagram, marks item as used.
+### `run-cycle` — Full automated posting
 
-```bash
-python main.py --channel my-channel run-cycle
+Picks top backlog item → generates video → uploads to YouTube + Instagram → marks as used.
 
-# Schedule a YouTube publish time (uploads as private, goes public at the given time)
-python main.py --channel my-channel run-cycle --publish-at 2026-03-13T09:00:00Z
+```
+python main.py --channel SLUG run-cycle [--publish-at TIME]
 ```
 
-What happens:
-1. Picks the top approved backlog item
-2. If backlog is empty, scrapes automatically
-3. Generates the video (TTS + render + assemble)
-4. Generates title + hashtags via Claude
-5. Uploads to YouTube and Instagram (skips whichever isn't configured)
-6. Marks the item as used
+| Option | Description |
+|--------|-------------|
+| `--publish-at DATETIME` | Upload as private, publish at this UTC time (YouTube only) |
 
-Note: `--publish-at` skips Instagram (not supported by their API).
+If the backlog is empty, scrapes automatically before generating.
 
-### Upload History
+### `upload-history` — Audit recent uploads
 
-```bash
-python main.py --channel my-channel upload-history
+```
+python main.py --channel SLUG upload-history
 ```
 
-### Analyze — Study existing channels
+### `analyze` — Study existing channels
 
-```bash
-python main.py --channel my-channel analyze --channels "https://youtube.com/@SomeChannel"
-python main.py --channel my-channel analyze --channels "URL1" "URL2" --visual
+```
+python main.py --channel SLUG analyze --channels URL [URL ...] [--visual]
 ```
 
 Generates a style profile JSON that guides AI content generation.
 
-### Platform Setup
+### `setup-youtube` / `setup-instagram` / `setup-twitter`
 
-```bash
-# YouTube (opens browser for OAuth)
-python main.py --channel my-channel setup-youtube
-
-# Instagram (exchange short-lived token for long-lived)
-python main.py --channel my-channel setup-instagram
-python main.py --channel my-channel setup-instagram --token "YOUR_TOKEN"
-
-# Twitter/X (for tweet scraping)
-python main.py --channel my-channel setup-twitter --username X --password X --email X
+```
+python main.py --channel SLUG setup-youtube
+python main.py --channel SLUG setup-instagram [--token TOKEN]
+python main.py --channel SLUG setup-twitter --username X --password X --email X
 ```
 
 ---
@@ -179,13 +167,13 @@ python main.py --channel my-channel setup-twitter --username X --password X --em
 0 4 * * * cd /path/to/auto-shorts && .venv/bin/python3 main.py --channel my-channel scrape --format reddit >> logs/cron-scrape.log 2>&1
 
 # Post at 09:00 and 21:00 UTC
-0 9 * * * cd /path/to/auto-shorts && .venv/bin/python3 main.py --channel my-channel run-cycle >> logs/cron-run.log 2>&1
+0 9  * * * cd /path/to/auto-shorts && .venv/bin/python3 main.py --channel my-channel run-cycle >> logs/cron-run.log 2>&1
 0 21 * * * cd /path/to/auto-shorts && .venv/bin/python3 main.py --channel my-channel run-cycle >> logs/cron-run.log 2>&1
 ```
 
 Create `logs/` first: `mkdir -p logs`
 
-Set `enabled: false` in `channels.yaml` to pause a channel without removing cron entries.
+Set `enabled: false` in `channels.yaml` to pause a channel without touching cron.
 
 ---
 
@@ -223,7 +211,7 @@ Put background music files (`.mp3`, `.wav`, `.m4a`) in `assets/music/` for tweet
 ## Project Structure
 
 ```
-shorts-pipeline/
+auto-shorts/
 ├── main.py                 # CLI entry point
 ├── config.py               # Loads .env, shared constants
 ├── channels.yaml           # Per-channel config
