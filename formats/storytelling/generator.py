@@ -125,7 +125,13 @@ def adapt_reddit_post(
                 system=_REDDIT_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": prompt}],
             )
-            text = resp.content[0].text.strip()
+            text = ""
+            for block in resp.content:
+                if block.type == "text":
+                    text = block.text.strip()
+                    break
+            if not text:
+                raise ValueError("No TextBlock in Claude response")
             story = _parse_json_shared(text)
             _validate(story)
             logger.info(

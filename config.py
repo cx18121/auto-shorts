@@ -41,6 +41,12 @@ TWITTER_COOKIES_PATH: Path = Path(os.getenv("TWITTER_COOKIES_PATH", "data/x.com_
 WEBSHARE_PROXY_USERNAME: str = os.getenv("WEBSHARE_PROXY_USERNAME", "")
 WEBSHARE_PROXY_PASSWORD: str = os.getenv("WEBSHARE_PROXY_PASSWORD", "")
 
+# Cloudflare R2 for Instagram video uploads
+CLOUDFLARE_R2_ACCOUNT_ID: str = os.getenv("CLOUDFLARE_R2_ACCOUNT_ID", "")
+CLOUDFLARE_R2_ACCESS_KEY: str = os.getenv("CLOUDFLARE_R2_ACCESS_KEY", "")
+CLOUDFLARE_R2_SECRET_KEY: str = os.getenv("CLOUDFLARE_R2_SECRET_KEY", "")
+CLOUDFLARE_R2_BUCKET: str = os.getenv("CLOUDFLARE_R2_BUCKET", "")
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
@@ -92,6 +98,7 @@ class ChannelConfig:
     enabled: bool = True
     hashtags: list = field(default_factory=list)
     instagram_user_id: str = ""
+    youtube_made_for_kids: bool = False
     quality: dict = field(default_factory=dict)
 
     def __post_init__(self) -> None:

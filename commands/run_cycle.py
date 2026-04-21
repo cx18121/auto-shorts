@@ -153,6 +153,7 @@ def cmd_run_cycle(channel_cfg, publish_at: str | None = None) -> None:
                     channel_cfg.youtube_client_id,
                     channel_cfg.youtube_client_secret,
                     publish_at=publish_at,
+                    made_for_kids=channel_cfg.youtube_made_for_kids,
                 )
                 logger.info("run-cycle: YouTube upload success video_id=%s", video_id)
                 log_upload(conn, slug, "youtube", video_id, title, "success")
@@ -173,28 +174,21 @@ def cmd_run_cycle(channel_cfg, publish_at: str | None = None) -> None:
         elif not channel_cfg.instagram_user_id or not ig_token_path.exists():
             logger.info("Instagram not configured for %s — skipping", slug)
         else:
-            public_base_url = os.environ.get("INSTAGRAM_PUBLIC_BASE_URL", "")
-            if not public_base_url:
-                logger.warning(
-                    "INSTAGRAM_PUBLIC_BASE_URL not set — skipping Instagram upload for %s", slug
+            caption = "\n\n".join(filter(None, [title, desc_body, hashtag_str]))
+            try:
+                access_token = refresh_instagram_token_if_needed(ig_token_path)
+                media_id = upload_to_instagram(
+                    Path(video_path), caption,
+                    channel_cfg.instagram_user_id,
+                    access_token,
                 )
-            else:
-                video_url = f"{public_base_url.rstrip('/')}/{os.path.basename(video_path)}"
-                caption   = f"{title}\n\n#{'  #'.join(hashtags)}" if hashtags else title
-                try:
-                    access_token = refresh_instagram_token_if_needed(ig_token_path)
-                    media_id = upload_to_instagram(
-                        video_url, caption,
-                        channel_cfg.instagram_user_id,
-                        access_token,
-                    )
-                    logger.info("run-cycle: Instagram upload success media_id=%s", media_id)
-                    log_upload(conn, slug, "instagram", media_id, title, "success")
-                    ig_status = "success"
-                except Exception as exc:
-                    logger.error("run-cycle: Instagram upload failed for %s: %s", slug, exc)
-                    log_upload(conn, slug, "instagram", "", title, "failed", error_msg=str(exc))
-                    ig_status = "failed"
+                logger.info("run-cycle: Instagram upload success media_id=%s", media_id)
+                log_upload(conn, slug, "instagram", media_id, title, "success")
+                ig_status = "success"
+            except Exception as exc:
+                logger.error("run-cycle: Instagram upload failed for %s: %s", slug, exc)
+                log_upload(conn, slug, "instagram", "", title, "failed", error_msg=str(exc))
+                ig_status = "failed"
 
         # ---------------------------------------------------------------
         # Step 6: Mark item as used (and log background for storytelling)

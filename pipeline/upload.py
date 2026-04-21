@@ -39,7 +39,13 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 
-from config import ANTHROPIC_API_KEY
+from config import (
+    ANTHROPIC_API_KEY,
+    CLOUDFLARE_R2_ACCOUNT_ID,
+    CLOUDFLARE_R2_ACCESS_KEY,
+    CLOUDFLARE_R2_SECRET_KEY,
+    CLOUDFLARE_R2_BUCKET,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +58,7 @@ YOUTUBE_CATEGORY_ID = "22"  # People & Blogs
 RETRIABLE_HTTP_STATUS = {500, 502, 503, 504}
 MAX_RETRIES = 10
 
-INSTAGRAM_BASE_URL = "https://graph.instagram.com/v18.0"
+INSTAGRAM_BASE_URL = "https://graph.facebook.com/v19.0"
 INSTAGRAM_POLL_INTERVAL_SECONDS = 60
 INSTAGRAM_POLL_MAX_ATTEMPTS = 5
 
@@ -199,6 +205,7 @@ def upload_to_youtube(
     client_id: str,
     client_secret: str,
     publish_at: str | None = None,
+    made_for_kids: bool = False,
 ) -> str:
     """Upload a video to YouTube Shorts and return the YouTube video ID.
 
@@ -217,6 +224,8 @@ def upload_to_youtube(
                        When provided, the video is uploaded as private and scheduled
                        to go public at the specified time. When None (default), the
                        video is uploaded as public immediately.
+        made_for_kids: Whether the video is made for kids (affects ad targeting
+                       and YouTube's restricted mode).
 
     Returns:
         YouTube video ID string (e.g. 'dQw4w9WgXcQ').
@@ -252,7 +261,10 @@ def upload_to_youtube(
             "tags": tags,
             "categoryId": YOUTUBE_CATEGORY_ID,
         },
-        "status": status_block,
+        "status": {
+            **status_block,
+            "madeForKids": made_for_kids,
+        },
     }
 
     media = MediaFileUpload(str(video_path), chunksize=-1, resumable=True)
@@ -310,23 +322,68 @@ def _resumable_upload(insert_request) -> dict:
 # Instagram
 # ---------------------------------------------------------------------------
 
+def _upload_to_r2(video_path: Path) -> str:
+    """Upload a local video file to Cloudflare R2 and return its public URL.
+
+    Args:
+        video_path: Local path to the MP4 file.
+
+    Returns:
+        Public R2 URL for the uploaded file.
+
+    Raises:
+        RuntimeError: If R2 credentials are missing or upload fails.
+    """
+    if not all([CLOUDFLARE_R2_ACCOUNT_ID, CLOUDFLARE_R2_ACCESS_KEY,
+                CLOUDFLARE_R2_SECRET_KEY, CLOUDFLARE_R2_BUCKET]):
+        raise RuntimeError(
+            "Missing R2 credentials. Set CLOUDFLARE_R2_ACCOUNT_ID, "
+            "CLOUDFLARE_R2_ACCESS_KEY, CLOUDFLARE_R2_SECRET_KEY, and "
+            "CLOUDFLARE_R2_BUCKET in .env"
+        )
+
+    import boto3
+    from botocore.config import Config
+
+    client = boto3.client(
+        "s3",
+        endpoint_url=f"https://{CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
+        aws_access_key_id=CLOUDFLARE_R2_ACCESS_KEY,
+        aws_secret_access_key=CLOUDFLARE_R2_SECRET_KEY,
+        config=Config(signature_version="s3v4"),
+        region_name="auto",
+    )
+
+    key = f"videos/{video_path.name}"
+    client.upload_file(str(video_path), CLOUDFLARE_R2_BUCKET, key)
+
+    public_url = f"https://{CLOUDFLARE_R2_BUCKET}.r2.dev/{key}"
+    # Handle custom dev URL: if bucket is 'auto-shorts' but the dev URL uses the full hash ID
+    if CLOUDFLARE_R2_BUCKET == "auto-shorts":
+        public_url = f"https://pub-e415244b47094357ae0421689ee0435b.r2.dev/{key}"
+    logger.info("_upload_to_r2: uploaded %s -> %s", video_path.name, public_url)
+    return public_url
+
+
 def upload_to_instagram(
-    video_url: str,
+    video_path: Path,
     caption: str,
     ig_user_id: str,
     access_token: str,
 ) -> str:
     """Upload a video as an Instagram Reel using the Graph API.
 
-    Two-step process:
-      1. Create a media container with the video URL and caption.
-      2. Poll the container status until FINISHED, then publish.
+    Flow:
+      1. Upload local video to R2 to get a public URL.
+      2. Create an Instagram media container (video_url as R2 URL).
+      3. Poll the container until status is FINISHED.
+      4. Publish the container and return the media ID.
 
     Args:
-        video_url:    Publicly accessible HTTPS URL to the video file.
-        caption:      Post caption (may include hashtags with # prefix).
-        ig_user_id:   Instagram User ID (numeric string).
-        access_token: Instagram long-lived access token.
+        video_path:    Path to the local MP4 video file.
+        caption:       Post caption (may include hashtags with # prefix).
+        ig_user_id:    Instagram User ID (numeric string).
+        access_token:  Instagram/Meta long-lived access token.
 
     Returns:
         Instagram media ID string.
@@ -335,18 +392,28 @@ def upload_to_instagram(
         RuntimeError: If container status is ERROR or polling times out.
         requests.HTTPError: On HTTP request failures.
     """
-    # Step 1: Create container
+    # Step 0: Upload to R2 to get a public URL
+    video_url = _upload_to_r2(video_path)
+
+    # Step 1: Create container with video_url as R2 URL
     create_url = f"{INSTAGRAM_BASE_URL}/{ig_user_id}/media"
-    create_params = {
-        "media_type": "REELS",
-        "video_url": video_url,
-        "caption": caption,
-        "share_to_feed": "true",
-        "access_token": access_token,
-    }
-    logger.info("upload_to_instagram: creating container for ig_user_id=%s", ig_user_id)
-    create_resp = requests.post(create_url, params=create_params)
-    create_resp.raise_for_status()
+    logger.info("upload_to_instagram: creating container with video_url=%s", video_url)
+
+    create_resp = requests.post(
+        create_url,
+        data={
+            "video_url": video_url,
+            "media_type": "REELS",
+            "caption": caption,
+            "share_to_feed": "true",
+            "access_token": access_token,
+        },
+    )
+
+    if not create_resp.ok:
+        logger.error("upload_to_instagram: container creation failed — HTTP %d: %s",
+                     create_resp.status_code, create_resp.text)
+        create_resp.raise_for_status()
     container_id = create_resp.json()["id"]
     logger.info("upload_to_instagram: container_id=%s", container_id)
 
@@ -372,7 +439,7 @@ def upload_to_instagram(
             raise RuntimeError(
                 f"Instagram container {container_id} failed with ERROR status"
             )
-        # Still processing -- wait and retry
+        # Still processing — wait and retry
         time.sleep(INSTAGRAM_POLL_INTERVAL_SECONDS)
     else:
         raise RuntimeError(
@@ -382,11 +449,10 @@ def upload_to_instagram(
 
     # Step 3: Publish
     publish_url = f"{INSTAGRAM_BASE_URL}/{ig_user_id}/media_publish"
-    publish_params = {
-        "creation_id": container_id,
-        "access_token": access_token,
-    }
-    publish_resp = requests.post(publish_url, params=publish_params)
+    publish_resp = requests.post(
+        publish_url,
+        params={"creation_id": container_id, "access_token": access_token},
+    )
     publish_resp.raise_for_status()
     media_id = publish_resp.json()["id"]
     logger.info("upload_to_instagram: published media_id=%s", media_id)
@@ -503,7 +569,7 @@ def generate_upload_metadata(
     )
     user_prompt = (
         f"Format: {format_type}\n\n"
-        f"Content:\n{content_text[:1000]}\n\n"
+        f"Content:\n{content_text}\n\n"
         "Generate title, description, and hashtags for this content."
     )
 
@@ -516,7 +582,14 @@ def generate_upload_metadata(
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
         )
-        ai_result = json.loads(strip_markdown_fences(response.content[0].text))
+        text = ""
+        for block in response.content:
+            if block.type == "text":
+                text = block.text.strip()
+                break
+        if not text:
+            raise ValueError("No TextBlock in Claude response")
+        ai_result = json.loads(strip_markdown_fences(text))
     except Exception as exc:
         logger.error("generate_upload_metadata: Claude call failed: %s", exc)
         # Fallback title: truncate at last word boundary within 80 chars

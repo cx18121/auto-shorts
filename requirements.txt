@@ -1,4 +1,5 @@
 anthropic
+boto3
 google-api-python-client
 google-auth-oauthlib>=1.0
 google-auth-httplib2>=0.1

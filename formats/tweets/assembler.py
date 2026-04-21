@@ -12,7 +12,7 @@ import logging
 import random
 from pathlib import Path
 
-from pipeline.ffmpeg_utils import probe_audio_duration, run_ffmpeg as _run_ffmpeg_shared
+from pipeline.ffmpeg_utils import FFMPEG_BIN, probe_audio_duration, run_ffmpeg as _run_ffmpeg_shared
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,7 @@ def _build_cmd(
             f"[narr][mus]amix=inputs=2:duration=first[aout]"
         )
         return [
-            "ffmpeg",
+            FFMPEG_BIN,
             "-y",
             "-loop", "1",
             "-i", str(img),                # input 0: static image
@@ -139,7 +139,7 @@ def _build_cmd(
     else:
         af = f"atempo={AUDIO_SPEED},volume={_AUDIO_VOLUME}"
         return [
-            "ffmpeg",
+            FFMPEG_BIN,
             "-y",
             "-loop", "1",
             "-i", str(img),

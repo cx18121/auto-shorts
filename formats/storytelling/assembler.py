@@ -16,7 +16,7 @@ import random
 import subprocess
 from pathlib import Path
 
-from pipeline.ffmpeg_utils import probe_audio_duration, run_ffmpeg as _run_ffmpeg_shared
+from pipeline.ffmpeg_utils import FFMPEG_BIN, probe_audio_duration, run_ffmpeg as _run_ffmpeg_shared
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +123,7 @@ def _build_ffmpeg_cmd(
     fonts_escaped = _escape_filter_path(_FONTS_DIR)
     adjusted_duration = duration / AUDIO_SPEED + 0.5
 
-    vf_chain = f"scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,ass={ass_escaped}:fontsdir={fonts_escaped}"
+    vf_chain = f"scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,subtitles=filename={ass_escaped}:fontsdir={fonts_escaped}"
     fc = (
         f"[0:v]{vf_chain}[vout];"
         f"[1:a]atempo={AUDIO_SPEED},volume={_AUDIO_VOLUME}[narr];"
@@ -131,7 +131,7 @@ def _build_ffmpeg_cmd(
         f"[narr][game]amix=inputs=2:duration=first[aout]"
     )
     return [
-        "ffmpeg",
+        FFMPEG_BIN,
         "-y",
         "-ss", str(bg_start),          # random start point in background
         "-stream_loop", "-1",          # loop background indefinitely
@@ -153,16 +153,24 @@ def _build_ffmpeg_cmd(
 
 
 def _escape_filter_path(path: str) -> str:
-    """Escape a file path for use in an FFmpeg -vf filter string.
+    """Escape a file path for use in an FFmpeg filter string.
 
-    FFmpeg filter values treat backslash, colon, comma, and single-quote
-    as special.  On Linux paths only colons are realistically an issue
-    (Windows drive letters don't appear), but we escape defensively.
+    Uses backslash escaping (no single-quote wrapping). FFmpeg 8 changed how
+    it parses single-quoted filter values — wrapping in quotes caused the
+    ':fontsdir=...' portion to be swallowed into the filename value.
+
+    Characters that are special in FFmpeg filter option syntax:
+      \\  :  ,  [  ]  ;  '  space
     """
-    path = path.replace("\\", "/")     # normalise separators
-    path = path.replace("'",  "\\'")   # escape single quotes
-    path = path.replace(":",  "\\:")   # escape colons (filter delimiter)
-    return f"'{path}'"
+    path = path.replace("\\", "\\\\")
+    path = path.replace("'",  "\\'")
+    path = path.replace(":",  "\\:")
+    path = path.replace(",",  "\\,")
+    path = path.replace("[",  "\\[")
+    path = path.replace("]",  "\\]")
+    path = path.replace(";",  "\\;")
+    path = path.replace(" ",  "\\ ")
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -331,7 +339,7 @@ def _build_split_ffmpeg_cmd(
     if subs:
         ass_escaped = _escape_filter_path(str(subs))
         fonts_escaped = _escape_filter_path(_FONTS_DIR)
-        fc_parts.append(f"[comp]ass={ass_escaped}:fontsdir={fonts_escaped}[out]")
+        fc_parts.append(f"[comp]subtitles=filename={ass_escaped}:fontsdir={fonts_escaped}[out]")
         out_label = "[out]"
     else:
         out_label = "[comp]"
@@ -340,7 +348,7 @@ def _build_split_ffmpeg_cmd(
     af = f"atempo={AUDIO_SPEED},volume={_AUDIO_VOLUME}"
 
     return [
-        "ffmpeg",
+        FFMPEG_BIN,
         "-y",
         "-ss", str(bg_start),              # random start point in background
         "-stream_loop", "-1",

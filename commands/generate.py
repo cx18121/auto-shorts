@@ -147,6 +147,11 @@ def _generate_storytelling_from_backlog(
 
             if backgrounds is not None:
                 # Multi-bg mode: TTS once, assemble one video per background
+                # Generate metadata once so all variants share the same title/description/hashtags
+                metadata = _generate_video_metadata(
+                    story["story_text"], "storytelling",
+                    channel_cfg.hashtags if channel_cfg else [],
+                )
                 video_paths = _assemble_multi_bg(
                     story["story_text"], backgrounds, no_audio, channel_cfg
                 )
@@ -154,6 +159,7 @@ def _generate_storytelling_from_backlog(
                     _save_video_metadata(
                         video_path, story["story_text"], "storytelling",
                         channel_cfg.hashtags if channel_cfg else [],
+                        metadata=metadata,
                     )
                 if not keep_backlog:
                     mark_story_used(conn, row["id"])
@@ -625,14 +631,43 @@ def _save_video_metadata(
     content_text: str,
     format_type: str,
     niche_hashtags: list[str] | None = None,
+    metadata: dict | None = None,
 ) -> None:
-    """Generate title/description/hashtags and save a .txt file next to the video."""
+    """Save a .txt file next to the video with title/description/hashtags.
+
+    Args:
+        video_path:     Path to the video file.
+        content_text:    The story/tweet text (used to generate metadata if not pre-generated).
+        format_type:    'storytelling' or 'tweets'.
+        niche_hashtags: Channel-level hashtags from channels.yaml.
+        metadata:       Pre-generated metadata dict. If None, generates it via Claude Haiku.
+                        Pass a pre-generated dict to reuse the same title/description
+                        across multiple videos (e.g., multi-bg variants).
+    """
     from pipeline.upload import generate_upload_metadata, save_metadata_file
     try:
-        metadata = generate_upload_metadata(content_text, niche_hashtags or [], format_type)
+        if metadata is None:
+            metadata = generate_upload_metadata(content_text, niche_hashtags or [], format_type)
         save_metadata_file(video_path, metadata)
     except Exception as e:
         logger.warning("Failed to generate upload metadata: %s", e)
+
+
+def _generate_video_metadata(
+    content_text: str,
+    format_type: str,
+    niche_hashtags: list[str],
+) -> dict | None:
+    """Generate upload metadata (title/description/hashtags) via Claude Haiku.
+
+    Returns None on failure so callers can fall back gracefully.
+    """
+    from pipeline.upload import generate_upload_metadata
+    try:
+        return generate_upload_metadata(content_text, niche_hashtags, format_type)
+    except Exception as e:
+        logger.warning("Failed to generate upload metadata: %s", e)
+        return None
 
 
 def _generate_silent_audio(output_dir: str) -> dict:

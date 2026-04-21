@@ -83,7 +83,14 @@ def _ai_review_batch(
                     temperature=0.2,
                     messages=[{"role": "user", "content": prompt}],
                 )
-                raw = strip_markdown_fences(resp.content[0].text)
+                raw_text = ""
+                for block in resp.content:
+                    if block.type == "text":
+                        raw_text = block.text.strip()
+                        break
+                if not raw_text:
+                    raise ValueError("No TextBlock in Claude response")
+                raw = strip_markdown_fences(raw_text)
                 parsed = json.loads(raw)
 
                 # Build a lookup by item number
@@ -155,7 +162,14 @@ def _ai_review_item(item: dict, source_label: str, channel_cfg) -> tuple[str, st
                 temperature=0.2,
                 messages=[{"role": "user", "content": prompt}],
             )
-            result = json.loads(strip_markdown_fences(resp.content[0].text))
+            resp_text = ""
+            for block in resp.content:
+                if block.type == "text":
+                    resp_text = block.text.strip()
+                    break
+            if not resp_text:
+                raise ValueError("No TextBlock in Claude response")
+            result = json.loads(strip_markdown_fences(resp_text))
             decision = result.get("decision", "reject").lower()
             if decision not in ("approve", "reject"):
                 decision = "reject"

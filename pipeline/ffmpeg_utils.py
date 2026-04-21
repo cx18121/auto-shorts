@@ -8,10 +8,18 @@ Public API:
 
 import json
 import logging
+import shutil
 import subprocess
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# Prefer ffmpeg-full (includes libass for subtitle rendering) over the standard bottle
+_FFMPEG_FULL = Path("/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg")
+_FFPROBE_FULL = Path("/opt/homebrew/opt/ffmpeg-full/bin/ffprobe")
+
+FFMPEG_BIN = str(_FFMPEG_FULL) if _FFMPEG_FULL.exists() else (shutil.which("ffmpeg") or "ffmpeg")
+FFPROBE_BIN = str(_FFPROBE_FULL) if _FFPROBE_FULL.exists() else (shutil.which("ffprobe") or "ffprobe")
 
 
 def probe_audio_duration(audio_path: Path) -> float:
@@ -19,7 +27,7 @@ def probe_audio_duration(audio_path: Path) -> float:
     logger.info("Probing audio duration: %s", audio_path)
     result = subprocess.run(
         [
-            "ffprobe",
+            FFPROBE_BIN,
             "-v", "quiet",
             "-print_format", "json",
             "-show_streams",
