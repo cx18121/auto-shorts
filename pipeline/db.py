@@ -64,3 +64,23 @@ def init_db() -> None:
         );
         """)
         init_backlog_tables(conn)
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS video_insights (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel             TEXT NOT NULL,
+            platform            TEXT NOT NULL,
+            video_id            TEXT NOT NULL,
+            fetched_at          TEXT NOT NULL,
+            view_count          INTEGER,
+            like_count          INTEGER,
+            comment_count       INTEGER,
+            watch_time_seconds  INTEGER,
+            reach               INTEGER,
+            shares              INTEGER,
+            saves               INTEGER,
+            title               TEXT,
+            transcript_path     TEXT,
+            bg_filename         TEXT,
+            UNIQUE(channel, platform, video_id, fetched_at)
+        );
+        """)

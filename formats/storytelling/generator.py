@@ -62,6 +62,7 @@ DURATION AND LENGTH:
 - Target duration: {dur_min}–{dur_max} seconds when read aloud at a natural pace
 - Target word count: {word_min}–{word_max} words
 {feedback_block}
+{system_context}
 SOURCE POST:
 Title: {post_title}
 Body: {post_body}
@@ -155,6 +156,61 @@ def adapt_reddit_post(
     raise RuntimeError("Post adaptation failed")
 
 
+def _get_analytics_context(channel: str) -> str:
+    """Build analytics context string from video_insights data.
+
+    Returns an empty string if no data is available yet.
+    """
+    try:
+        from pipeline.db import get_connection
+        from pipeline.analytics import get_generation_recommendations
+        conn = get_connection()
+        try:
+            recs = get_generation_recommendations(conn, channel, days=30)
+        finally:
+            conn.close()
+        title_hints = recs.get("title_hints", [])
+        hook_style = recs.get("hook_style", "")
+        hook_examples = recs.get("hook_examples", [])
+        body_style = recs.get("body_style", "")
+        preferred_bgs = recs.get("preferred_backgrounds", [])
+        avoid = recs.get("avoid", [])
+
+        if not title_hints and not hook_style:
+            return ""
+
+        parts = ["\nCHANNEL ANALYTICS (apply to title and full script):"]
+
+        if title_hints:
+            parts.append("TITLE HINTS:")
+            for h in title_hints[:4]:
+                parts.append(f"  - {h}")
+
+        if hook_style:
+            parts.append(f"\nHOOK STYLE (HIGHEST WEIGHT — first 5 seconds must grab attention):")
+            parts.append(f"  - {hook_style}")
+            if hook_examples:
+                parts.append("  Examples from top-performing videos:")
+                for ex in hook_examples[:3]:
+                    parts.append(f"    - \"{ex}\"")
+
+        if body_style:
+            parts.append(f"\nBODY TRANSCRIPT STYLE:")
+            parts.append(f"  - {body_style}")
+
+        if preferred_bgs:
+            parts.append(f"\nPREFERRED BACKGROUNDS: {', '.join(preferred_bgs)}")
+
+        if avoid:
+            parts.append(f"\nAVOID:")
+            for a in avoid:
+                parts.append(f"  - {a}")
+
+        return "\n".join(parts)
+    except Exception:
+        return ""
+
+
 # ---------------------------------------------------------------------------
 # Internals
 # ---------------------------------------------------------------------------
@@ -179,6 +235,9 @@ def _build_reddit_prompt(
         f"\nPREVIOUS ATTEMPT FEEDBACK (fix these issues in your next version):\n{feedback}\n"
         if feedback else ""
     )
+
+    analytics_context = _get_analytics_context(channel_slug)
+
     return _REDDIT_USER_PROMPT.format(
         guidance=guidance,
         tone=tone,
@@ -191,6 +250,7 @@ def _build_reddit_prompt(
         post_title=post.get("title", ""),
         post_body=post.get("body", ""),
         feedback_block=feedback_block,
+        system_context=analytics_context,
     )
 
 

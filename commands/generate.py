@@ -178,7 +178,7 @@ def _generate_storytelling_from_backlog(
                 else:
                     recent = get_recent_backgrounds(conn, slug, limit=5)
                     exclude = list(dict.fromkeys(recent + batch_used))  # dedup, preserve order
-                    video_bg = _pick_background(exclude=exclude)
+                    video_bg = _pick_background(exclude=exclude, channel=slug)
 
                 video_path = _run_storytelling_pipeline(
                     story["story_text"], video_bg, no_audio=no_audio
@@ -447,12 +447,14 @@ def _interactive_pick(rows: list, max_picks: int, fmt: str) -> list:
     return selected[:max_picks]
 
 
-def _pick_background(exclude: list[str] | None = None) -> str:
+def _pick_background(exclude: list[str] | None = None, channel: str | None = None) -> str:
     """Return a random background clip from assets/backgrounds/.
 
     Args:
         exclude: Optional list of clip basenames (e.g. ["subwaysurfers.mp4"]) to skip.
                  If all clips are excluded, falls back to the full list to avoid a crash.
+        channel: Optional channel slug; if provided and analytics data exists,
+                 biases selection toward top-performing backgrounds.
     """
     bg_dir = config.ASSETS_DIR / "backgrounds"
     exts   = ("**/*.mp4", "**/*.webm", "**/*.mov", "**/*.mkv")
@@ -472,6 +474,31 @@ def _pick_background(exclude: list[str] | None = None) -> str:
             logger.warning(
                 "_pick_background: all %d clips are excluded — allowing reuse", len(clips)
             )
+
+    # Bias toward top-performing backgrounds if analytics data exists
+    if channel:
+        try:
+            from pipeline.db import get_connection
+            from pipeline.analytics import get_best_backgrounds
+            conn = get_connection()
+            try:
+                top_bgs = get_best_backgrounds(conn, channel, limit=5)
+            finally:
+                conn.close()
+            if top_bgs:
+                # 70% chance to pick from top backgrounds, 30% random
+                if random.random() < 0.7:
+                    top_names = set(top_bgs)
+                    top_clips = [p for p in clips if p.name in top_names]
+                    if top_clips:
+                        chosen = random.choice(top_clips)
+                        logger.info(
+                            "Selected top-performing background clip: %s (analytics-biased)",
+                            chosen.name,
+                        )
+                        return str(chosen)
+        except Exception:
+            pass  # Analytics not available — fall through to random selection
 
     chosen = random.choice(clips)
     logger.info("Selected background clip: %s", chosen.name)

@@ -105,6 +105,16 @@ def main() -> None:
     # --- status ---
     sub.add_parser("status", help="Show channel health summary (backlog, tokens, uploads)")
 
+    # --- fetch-analytics ---
+    p_fetch = sub.add_parser("fetch-analytics", help="Fetch latest YouTube/Instagram performance metrics")
+    p_fetch.add_argument("--days", type=int, default=30, metavar="N",
+                         help="Lookback window in days (default: 30)")
+
+    # --- analytics-report ---
+    p_report = sub.add_parser("analytics-report", help="Print human-readable insights and recommendations")
+    p_report.add_argument("--days", type=int, default=30, metavar="N",
+                         help="Lookback window in days (default: 30)")
+
     # --- setup-twitter (deprecated no-op) ---
     p_tw = sub.add_parser("setup-twitter", help="(Deprecated) Add a Twitter/X account")
     p_tw.add_argument("--username", required=True)
@@ -197,6 +207,14 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg) -> None:
             args.cookies,
             channel_cfg=channel_cfg,
         )
+
+    elif args.command == "fetch-analytics":
+        from commands.fetch_analytics import cmd_fetch_analytics
+        cmd_fetch_analytics(channel_cfg)
+
+    elif args.command == "analytics-report":
+        from commands.analytics_report import cmd_analytics_report
+        cmd_analytics_report(channel_cfg, days=args.days)
 
 
 if __name__ == "__main__":
