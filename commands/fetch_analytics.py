@@ -54,6 +54,7 @@ def cmd_fetch_analytics(channel_cfg) -> None:
                             title=upload.get("title"),
                             transcript_path=upload.get("transcript_path"),
                             bg_filename=upload.get("bg_filename"),
+                            published_at=s.get("published_at"),
                         )
                         logger.info("fetch-analytics: saved YouTube insights for %s (views=%d)",
                                     vid, s["view_count"])

@@ -125,6 +125,15 @@ def cmd_run_cycle(channel_cfg, publish_at: str | None = None) -> None:
             logger.error("run-cycle: video generation failed for %s — aborting", slug)
             return
 
+        # Build content references for analytics tracking
+        output_dir = str(Path(video_path).parent)
+        if fmt == "storytelling":
+            transcript_path = str(Path(output_dir) / "timestamps.json")
+            bg_name = Path(background).name
+        else:
+            transcript_path = None
+            bg_name = None
+
         # ---------------------------------------------------------------
         # Step 3: Generate upload metadata
         # ---------------------------------------------------------------
@@ -156,11 +165,11 @@ def cmd_run_cycle(channel_cfg, publish_at: str | None = None) -> None:
                     made_for_kids=channel_cfg.youtube_made_for_kids,
                 )
                 logger.info("run-cycle: YouTube upload success video_id=%s", video_id)
-                log_upload(conn, slug, "youtube", video_id, title, "success")
+                log_upload(conn, slug, "youtube", video_id, title, "success", transcript_path=transcript_path, bg_filename=bg_name)
                 yt_status = "success"
             except Exception as exc:
                 logger.error("run-cycle: YouTube upload failed for %s: %s", slug, exc)
-                log_upload(conn, slug, "youtube", "", title, "failed", error_msg=str(exc))
+                log_upload(conn, slug, "youtube", "", title, "failed", error_msg=str(exc), transcript_path=transcript_path, bg_filename=bg_name)
                 yt_status = "failed"
 
         # ---------------------------------------------------------------
@@ -184,11 +193,11 @@ def cmd_run_cycle(channel_cfg, publish_at: str | None = None) -> None:
                     access_token,
                 )
                 logger.info("run-cycle: Instagram upload success media_id=%s", media_id)
-                log_upload(conn, slug, "instagram", media_id, title, "success")
+                log_upload(conn, slug, "instagram", media_id, title, "success", transcript_path=transcript_path, bg_filename=bg_name)
                 ig_status = "success"
             except Exception as exc:
                 logger.error("run-cycle: Instagram upload failed for %s: %s", slug, exc)
-                log_upload(conn, slug, "instagram", "", title, "failed", error_msg=str(exc))
+                log_upload(conn, slug, "instagram", "", title, "failed", error_msg=str(exc), transcript_path=transcript_path, bg_filename=bg_name)
                 ig_status = "failed"
 
         # ---------------------------------------------------------------

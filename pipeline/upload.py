@@ -82,14 +82,16 @@ def init_upload_table(conn: sqlite3.Connection) -> None:
     """
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS uploads (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        channel     TEXT NOT NULL,
-        platform    TEXT NOT NULL,
-        video_id    TEXT NOT NULL,
-        title       TEXT NOT NULL,
-        status      TEXT NOT NULL,
-        error_msg   TEXT,
-        uploaded_at TEXT NOT NULL
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel         TEXT NOT NULL,
+        platform        TEXT NOT NULL,
+        video_id        TEXT NOT NULL,
+        title           TEXT NOT NULL,
+        status          TEXT NOT NULL,
+        error_msg       TEXT,
+        uploaded_at     TEXT NOT NULL,
+        transcript_path TEXT,
+        bg_filename     TEXT
     );
     """)
     logger.debug("init_upload_table: uploads table ready")
@@ -103,25 +105,29 @@ def log_upload(
     title: str,
     status: str,
     error_msg: Optional[str] = None,
+    transcript_path: Optional[str] = None,
+    bg_filename: Optional[str] = None,
 ) -> None:
     """Insert an upload record into the uploads table.
 
     Args:
-        conn:      Active SQLite connection.
-        channel:   Channel slug (e.g. 'relationships').
-        platform:  'youtube' or 'instagram'.
-        video_id:  Platform-assigned video/media ID.
-        title:     Upload title used for the video.
-        status:    'success' or 'error'.
-        error_msg: Optional error message for failed uploads.
+        conn:           Active SQLite connection.
+        channel:        Channel slug (e.g. 'relationships').
+        platform:       'youtube' or 'instagram'.
+        video_id:       Platform-assigned video/media ID.
+        title:          Upload title used for the video.
+        status:         'success' or 'error'.
+        error_msg:      Optional error message for failed uploads.
+        transcript_path: Path to timestamps.json (storytelling format).
+        bg_filename:    Background clip filename used.
     """
     uploaded_at = datetime.now(timezone.utc).isoformat()
     conn.execute(
         """
-        INSERT INTO uploads (channel, platform, video_id, title, status, error_msg, uploaded_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO uploads (channel, platform, video_id, title, status, error_msg, uploaded_at, transcript_path, bg_filename)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (channel, platform, video_id, title, status, error_msg, uploaded_at),
+        (channel, platform, video_id, title, status, error_msg, uploaded_at, transcript_path, bg_filename),
     )
     conn.commit()
     logger.info(

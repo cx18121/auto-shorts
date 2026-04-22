@@ -71,6 +71,7 @@ def init_db() -> None:
             platform            TEXT NOT NULL,
             video_id            TEXT NOT NULL,
             fetched_at          TEXT NOT NULL,
+            published_at        TEXT,
             view_count          INTEGER,
             like_count          INTEGER,
             comment_count       INTEGER,

@@ -46,10 +46,10 @@ _INSTAGRAM_RATE_LIMIT_DELAY = 20  # seconds between calls (200/hr limit)
 # ---------------------------------------------------------------------------
 
 def fetch_youtube_stats(video_ids: list[str], api_key: str) -> list[dict]:
-    """Batch-fetch YouTube statistics for up to 50 video IDs at once.
+    """Batch-fetch YouTube statistics AND publish date for up to 50 video IDs at once.
 
-    Uses the YouTube Data API v3 videos.list endpoint with part=statistics.
-    Each video ID costs 1 quota unit (batch is more efficient).
+    Uses the YouTube Data API v3 videos.list endpoint with part=statistics,snippet.
+    Each video ID costs 1 quota unit per part (batch is more efficient).
 
     Args:
         video_ids: List of YouTube video ID strings (max 50 per call).
@@ -57,7 +57,7 @@ def fetch_youtube_stats(video_ids: list[str], api_key: str) -> list[dict]:
 
     Returns:
         List of dicts with keys: video_id, view_count, like_count,
-        comment_count (None if unavailable).
+        comment_count, published_at (ISO string or None).
     """
     if not video_ids or not api_key:
         return []
@@ -68,7 +68,7 @@ def fetch_youtube_stats(video_ids: list[str], api_key: str) -> list[dict]:
         batch = video_ids[i:i + 50]
         url = "https://www.googleapis.com/youtube/v3/videos"
         params = {
-            "part": "statistics",
+            "part": "statistics,snippet",
             "id": ",".join(batch),
             "key": api_key,
         }
@@ -79,11 +79,13 @@ def fetch_youtube_stats(video_ids: list[str], api_key: str) -> list[dict]:
                 data = resp.json()
                 for item in data.get("items", []):
                     stats = item.get("statistics", {})
+                    snippet = item.get("snippet", {})
                     results.append({
                         "video_id": item["id"],
                         "view_count": int(stats.get("viewCount", 0)),
                         "like_count": int(stats.get("likeCount", 0)),
                         "comment_count": int(stats.get("commentCount", 0)),
+                        "published_at": snippet.get("publishedAt"),
                     })
                 break
             except Exception as exc:
@@ -182,6 +184,7 @@ def save_insights(
     title: Optional[str] = None,
     transcript_path: Optional[str] = None,
     bg_filename: Optional[str] = None,
+    published_at: Optional[str] = None,
 ) -> None:
     """Insert or replace a video_insights row.
 
@@ -195,17 +198,18 @@ def save_insights(
         title:          Video title for denormalized reference.
         transcript_path: Path to timestamps.json (storytelling format).
         bg_filename:    Background clip filename used.
+        published_at:   YouTube publish date (ISO 8601 string) — only for YouTube.
     """
     now = datetime.now(timezone.utc).isoformat()
     conn.execute("""
         INSERT OR REPLACE INTO video_insights
-        (channel, platform, video_id, fetched_at,
+        (channel, platform, video_id, fetched_at, published_at,
          view_count, like_count, comment_count,
          watch_time_seconds, reach, shares, saves,
          title, transcript_path, bg_filename)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        channel, platform, video_id, now,
+        channel, platform, video_id, now, published_at,
         metrics.get("view_count"),
         metrics.get("like_count"),
         metrics.get("comment_count"),
@@ -813,14 +817,16 @@ def get_top_videos(
 
     rows = conn.execute(f"""
         SELECT vi.video_id, vi.{metric}, u.title,
-               vi.transcript_path, vi.bg_filename
+               vi.transcript_path, vi.bg_filename,
+               vi.published_at,
+               CAST(vi.view_count AS REAL) / MAX(1, julianday('now') - julianday(vi.published_at)) as views_per_day
         FROM video_insights vi
         JOIN uploads u ON u.video_id = vi.video_id
             AND u.channel = vi.channel AND u.platform = vi.platform
         WHERE vi.channel = ?
           AND vi.fetched_at > datetime('now', ?)
           AND vi.view_count >= ?
-        ORDER BY vi.{metric} DESC
+        ORDER BY views_per_day DESC
         LIMIT ?
     """, (channel, f"-{days} days", min_views, limit)).fetchall()
 
