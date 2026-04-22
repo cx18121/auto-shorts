@@ -561,9 +561,9 @@ def generate_upload_metadata(
         "Generate upload metadata as JSON with this exact schema:\n"
         '{"title": "...", "description": "...", "hashtags": ["tag1", "tag2", "tag3"]}\n\n'
         "Rules:\n"
-        "- title: compelling, under 100 chars, no clickbait, no ALL CAPS\n"
-        "- description: 1-2 sentences that hook viewers and summarize the content, "
-        "no hashtags here\n"
+        "- title: ONE sentence only, ends with '?' (a compelling question), 50-80 chars, no ellipsis, no clickbait\n"
+        "- description: 2-3 sentences that CONTINUE the scenario from the title (do NOT repeat the title), "
+        "ends with a period (full sentence, no '...' truncation), no hashtags, 150-400 chars\n"
         "- hashtags: 2-3 content-specific tags, NO # prefix, lowercase\n"
         "- Output valid JSON only, no explanation"
     )
@@ -611,6 +611,23 @@ def generate_upload_metadata(
 
     title = ai_result.get("title", content_text[:80])
     description = ai_result.get("description", "")
+
+    # Truncate title to YouTube's 100-char limit at word boundary (no ellipsis)
+    if len(title) > 100:
+        cut = title[:100]
+        last_space = cut.rfind(" ")
+        if last_space > 40:
+            cut = cut[:last_space]
+        title = cut.rstrip(",-")
+
+    # Truncate description to 400 chars at word boundary (no ellipsis)
+    if len(description) > 400:
+        cut = description[:400]
+        last_space = cut.rfind(" ")
+        if last_space > 40:
+            cut = cut[:last_space]
+        description = cut.rstrip(",-")
+
     ai_hashtags = ai_result.get("hashtags", [])
 
     # Merge and deduplicate (preserve order: AI tags first, then niche)

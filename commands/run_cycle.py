@@ -174,6 +174,7 @@ def cmd_run_cycle(channel_cfg, publish_at: str | None = None) -> None:
         elif not channel_cfg.instagram_user_id or not ig_token_path.exists():
             logger.info("Instagram not configured for %s — skipping", slug)
         else:
+            # Instagram caption: title + description + hashtags
             caption = "\n\n".join(filter(None, [title, desc_body, hashtag_str]))
             try:
                 access_token = refresh_instagram_token_if_needed(ig_token_path)
