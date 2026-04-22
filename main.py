@@ -64,6 +64,8 @@ def main() -> None:
                        help="Interactively pick ONE background clip; all videos in the batch use it (storytelling only)")
     p_gen.add_argument("--multi-bg", action="store_true",
                        help="Interactively pick MULTIPLE backgrounds; TTS+captions generated once, one output video per clip — final_bg1.mp4, final_bg2.mp4, ... (storytelling only; overrides --background)")
+    p_gen.add_argument("--log-uploads", action="store_true",
+                       help="Call log_upload for each generated video so uploads table has transcript_path + bg_filename (for analytics backfill)")
 
     # --- scrape ---
     p_scrape = sub.add_parser("scrape", help="Scrape content into the backlog")
@@ -172,6 +174,7 @@ def _dispatch_command(args: argparse.Namespace, channel_cfg) -> None:
             keep_backlog=args.keep_backlog,
             pick_background=pick_bg,
             multi_bg=args.multi_bg,
+            upload_after=args.log_uploads,
         )
 
     elif args.command == "scrape":

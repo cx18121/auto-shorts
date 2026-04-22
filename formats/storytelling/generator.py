@@ -201,6 +201,15 @@ def _get_analytics_context(channel: str) -> str:
         if preferred_bgs:
             parts.append(f"\nPREFERRED BACKGROUNDS: {', '.join(preferred_bgs)}")
 
+        # New OAuth-enriched performance metrics
+        if recs.get("avg_view_percentage"):
+            parts.append(f"\nPERFORMANCE BENCHMARKS (from top videos):")
+            parts.append(f"  - Avg watch duration: {recs['avg_view_duration_seconds']}s per view")
+            parts.append(f"  - Avg retention rate: {recs['avg_view_percentage']}% of video")
+            parts.append(f"  - Avg likes per video: {recs['avg_engagement_likes']}")
+            parts.append(f"  - Top video views: {recs['top_view_count']:,}")
+            parts.append(f"  - Videos analyzed: {recs['total_videos_analyzed']}")
+
         if avoid:
             parts.append(f"\nAVOID:")
             for a in avoid:

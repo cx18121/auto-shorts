@@ -3,6 +3,7 @@ pipeline/analytics.py — Fetch and analyze video performance metrics.
 
 Public API:
     fetch_youtube_stats(video_ids, api_key)          -> list[dict]
+    fetch_youtube_analytics(creds, video_ids, days)  -> list[dict]
     fetch_instagram_insights(media_ids, access_token) -> list[dict]
     save_insights(conn, ...)                          -> None
     get_recent_uploads_without_insights(conn, ...)    -> list[dict]
@@ -33,6 +34,8 @@ from pathlib import Path
 from typing import Optional
 
 import requests
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 
 import config
 
@@ -95,6 +98,212 @@ def fetch_youtube_stats(video_ids: list[str], api_key: str) -> list[dict]:
                 else:
                     time.sleep(2 ** attempt)
     return results
+
+
+def fetch_youtube_analytics(creds, video_ids: list[str], days: int = 30) -> list[dict]:
+    """Fetch YouTube analytics via OAuth using the YouTube Analytics API.
+
+    Fetches ALL videos from the account via an unfiltered query with sort=-views
+    (required by the API for dimensions=video), then returns metrics for only
+    the requested video_ids. Videos not in the Analytics API response get 0 values.
+
+    Returns richer metrics than Data API: views, watch time, average view duration,
+    average view percentage, likes, shares, comments, dislikes.
+
+    Args:
+        creds:     Google OAuth2 Credentials object (with yt-analytics.readonly scope).
+        video_ids: List of YouTube video ID strings to return metrics for.
+        days:      Lookback window in days (default 30).
+
+    Returns:
+        List of dicts with keys: video_id, views, estimated_minutes_watched,
+        average_view_duration_seconds, average_view_percentage, likes, shares,
+        comments, dislikes.
+    """
+    if not video_ids or not creds:
+        return []
+
+    if creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+
+    base_url = "https://youtubeanalytics.googleapis.com/v2/reports"
+    end_date = datetime.now().strftime("%Y-%m-%d")
+    start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+
+    metrics = (
+        "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,"
+        "likes,shares,comments,dislikes"
+    )
+
+    # Fetch ALL account videos via unfiltered query (requires sort=-views for dimensions=video)
+    all_account_videos: dict[str, dict] = {}
+    page_token: str | None = None
+
+    while True:
+        params: dict = {
+            "ids": "channel==MINE",
+            "startDate": start_date,
+            "endDate": end_date,
+            "metrics": metrics,
+            "dimensions": "video",
+            "sort": "-views",
+            "maxResults": 50,
+        }
+        if page_token:
+            params["pageToken"] = page_token
+
+        for attempt in range(1, _MAX_RETRIES + 1):
+            try:
+                if creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+                headers = {"Authorization": f"Bearer {creds.token}"}
+                resp = requests.get(base_url, params=params, headers=headers, timeout=15)
+                resp.raise_for_status()
+                data = resp.json()
+
+                column_headers = [h["name"] for h in data.get("columnHeaders", [])]
+                for row in data.get("rows", []):
+                    row_dict = dict(zip(column_headers, row))
+                    vid = row_dict.get("video", "")
+                    all_account_videos[vid] = {
+                        "views": int(row_dict.get("views", 0)),
+                        "estimated_minutes_watched": float(row_dict.get("estimatedMinutesWatched", 0)),
+                        "average_view_duration_seconds": float(row_dict.get("averageViewDuration", 0)),
+                        "average_view_percentage": float(row_dict.get("averageViewPercentage", 0)),
+                        "likes": int(row_dict.get("likes", 0)),
+                        "shares": int(row_dict.get("shares", 0)),
+                        "comments": int(row_dict.get("comments", 0)),
+                        "dislikes": int(row_dict.get("dislikes", 0)),
+                    }
+
+                page_token = data.get("nextPageToken")
+                break
+            except Exception as exc:
+                if attempt == _MAX_RETRIES:
+                    logger.error("YouTube analytics fetch failed after %d attempts", _MAX_RETRIES)
+                    return []
+                time.sleep(2 ** attempt)
+
+        if not page_token:
+            break
+
+    # Return metrics for requested video_ids (0 for any not in Analytics response)
+    results = []
+    for vid in video_ids:
+        if vid in all_account_videos:
+            d = all_account_videos[vid]
+            results.append({
+                "video_id": vid,
+                "views": d["views"],
+                "estimated_minutes_watched": d["estimated_minutes_watched"],
+                "average_view_duration_seconds": d["average_view_duration_seconds"],
+                "average_view_percentage": d["average_view_percentage"],
+                "likes": d["likes"],
+                "shares": d["shares"],
+                "comments": d["comments"],
+                "dislikes": d["dislikes"],
+            })
+        else:
+            # Video not in Analytics API response → 0 views in this period
+            results.append({
+                "video_id": vid,
+                "views": 0,
+                "estimated_minutes_watched": 0.0,
+                "average_view_duration_seconds": None,
+                "average_view_percentage": None,
+                "likes": 0,
+                "shares": 0,
+                "comments": 0,
+                "dislikes": 0,
+            })
+
+    return results
+
+
+def fetch_all_youtube_channel_videos(creds, days: int = 365) -> list[dict]:
+    """Fetch ALL videos from the YouTube channel via Analytics API.
+
+    Uses an unfiltered paginated query with sort=-views (required by the API
+    for dimensions=video). Returns every video in the account, including
+    manually uploaded ones not tracked in our uploads table.
+
+    Args:
+        creds: Google OAuth2 Credentials object (with yt-analytics.readonly scope).
+        days:  Lookback window in days (default 365 — full account history).
+
+    Returns:
+        List of dicts with keys: video_id, views, estimated_minutes_watched,
+        average_view_duration_seconds, average_view_percentage, likes, shares,
+        comments, dislikes, published_at (ISO string or None).
+    """
+    if not creds:
+        return []
+
+    if creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+
+    base_url = "https://youtubeanalytics.googleapis.com/v2/reports"
+    end_date = datetime.now().strftime("%Y-%m-%d")
+    start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+
+    metrics = (
+        "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,"
+        "likes,shares,comments,dislikes"
+    )
+
+    all_videos: dict[str, dict] = {}
+    page_token: str | None = None
+
+    while True:
+        params: dict = {
+            "ids": "channel==MINE",
+            "startDate": start_date,
+            "endDate": end_date,
+            "metrics": metrics,
+            "dimensions": "video",
+            "sort": "-views",
+            "maxResults": 50,
+        }
+        if page_token:
+            params["pageToken"] = page_token
+
+        for attempt in range(1, _MAX_RETRIES + 1):
+            try:
+                if creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+                headers = {"Authorization": f"Bearer {creds.token}"}
+                resp = requests.get(base_url, params=params, headers=headers, timeout=15)
+                resp.raise_for_status()
+                data = resp.json()
+
+                column_headers = [h["name"] for h in data.get("columnHeaders", [])]
+                for row in data.get("rows", []):
+                    row_dict = dict(zip(column_headers, row))
+                    vid = row_dict.get("video", "")
+                    all_videos[vid] = {
+                        "video_id": vid,
+                        "views": int(row_dict.get("views", 0)),
+                        "estimated_minutes_watched": float(row_dict.get("estimatedMinutesWatched", 0)),
+                        "average_view_duration_seconds": float(row_dict.get("averageViewDuration", 0)),
+                        "average_view_percentage": float(row_dict.get("averageViewPercentage", 0)),
+                        "likes": int(row_dict.get("likes", 0)),
+                        "shares": int(row_dict.get("shares", 0)),
+                        "comments": int(row_dict.get("comments", 0)),
+                        "dislikes": int(row_dict.get("dislikes", 0)),
+                    }
+
+                page_token = data.get("nextPageToken")
+                break
+            except Exception as exc:
+                if attempt == _MAX_RETRIES:
+                    logger.error("fetch_all_youtube_channel_videos failed after %d attempts: %s", _MAX_RETRIES, exc)
+                    return []
+                time.sleep(2 ** attempt)
+
+        if not page_token:
+            break
+
+    return list(all_videos.values())
 
 
 def fetch_instagram_insights(
@@ -206,8 +415,9 @@ def save_insights(
         (channel, platform, video_id, fetched_at, published_at,
          view_count, like_count, comment_count,
          watch_time_seconds, reach, shares, saves,
+         average_view_duration_seconds, average_view_percentage, dislikes,
          title, transcript_path, bg_filename)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         channel, platform, video_id, now, published_at,
         metrics.get("view_count"),
@@ -217,6 +427,9 @@ def save_insights(
         metrics.get("reach"),
         metrics.get("shares"),
         metrics.get("saves"),
+        metrics.get("average_view_duration_seconds"),
+        metrics.get("average_view_percentage"),
+        metrics.get("dislikes"),
         title,
         transcript_path,
         bg_filename,
@@ -263,16 +476,24 @@ def get_recent_uploads_without_insights(
 # Analysis layer — timestamp parsing
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Analysis layer — timestamp parsing
+# ---------------------------------------------------------------------------
+
 def extract_hook_words(transcript_path: str, max_seconds: float = 5.0) -> str:
-    """Return the words spoken within the first `max_seconds` of a transcript.
+    """Return the words spoken in the first sentence(s) of a transcript, up to max_seconds.
 
     Reads a timestamps.json file (word-level timing from ElevenLabs).
-    Accumulates words whose start time falls within max_seconds.
-    Returns a single space-separated string.
+    Accumulates words whose start_ms falls within max_seconds, but extends
+    to capture the full last sentence (detected via trailing punctuation on the word)
+    even if that sentence crosses slightly past max_seconds.
+
+    The hook is treated as a rhetorical unit = complete sentence(s), not an
+    arbitrary word cutoff. This prevents the 5s window from slicing mid-sentence.
 
     Args:
         transcript_path: Path to timestamps.json.
-        max_seconds:     How many seconds of the beginning to capture (default 5.0).
+        max_seconds:     Maximum elapsed time for the hook window (default 5.0).
 
     Returns:
         String of words in the hook window, e.g.
@@ -284,16 +505,43 @@ def extract_hook_words(transcript_path: str, max_seconds: float = 5.0) -> str:
     except (FileNotFoundError, json.JSONDecodeError):
         return ""
 
-    words = []
+    if not timestamps:
+        return ""
+
+    # Collect words whose start_ms falls within the window
+    words_in_window = []
     for entry in timestamps:
         if isinstance(entry, dict) and entry.get("start_ms") is not None:
-            start_s = entry["start_ms"] / 1000.0
-            if start_s > max_seconds:
+            if entry["start_ms"] / 1000.0 > max_seconds:
                 break
             word = entry.get("word", "")
             if word:
-                words.append(word)
-    return " ".join(words)
+                words_in_window.append(word)
+
+    if not words_in_window:
+        return ""
+
+    # Detect sentence boundaries by looking at trailing punctuation on words.
+    # Words like "description?" or "day." end a sentence.
+    # We extend past max_seconds to capture the complete last sentence.
+    def ends_sentence(w: str) -> bool:
+        return w.endswith(".") or w.endswith("?") or w.endswith("!")
+
+    # Find the index of the last word that ends a sentence
+    # (preferring earlier sentences over very long ones)
+    sentence_end_indices = [i for i, w in enumerate(words_in_window) if ends_sentence(w)]
+
+    if sentence_end_indices:
+        # Take the last sentence boundary (the hook = all complete sentences)
+        last_sentence_end = sentence_end_indices[-1]
+        # But cap at a reasonable max: no more than 35 words for a hook
+        # (anything longer has likely already lost the viewer)
+        if last_sentence_end > 34:
+            last_sentence_end = 34
+        return " ".join(words_in_window[:last_sentence_end + 1])
+
+    # No sentence boundary found — cap at 25 words as fallback heuristic
+    return " ".join(words_in_window[:25])
 
 
 def extract_full_transcript(transcript_path: str) -> str:
@@ -537,8 +785,8 @@ def analyze_transcript_weighted(transcript_paths: list[str], views: list[int]) -
             continue
 
         words = [e.get("word", "") for e in ts if e.get("word")]
-        hook_texts.append(" ".join(words[:15]))  # first ~15 words ≈ 5 seconds
-        body_texts.append(" ".join(words[15:]))  # rest
+        hook_texts.append(extract_hook_words(path, max_seconds=5.0))
+        body_texts.append(" ".join(words))  # full transcript (hook already captured in hook_texts)
 
     # Hook analysis (from top videos only)
     hook_results = []
@@ -780,7 +1028,20 @@ def get_generation_recommendations(
         "body_style": body_rec,
         "preferred_backgrounds": preferred_backgrounds,
         "avoid": avoid,
+        # New OAuth-enriched metrics
+        "avg_view_duration_seconds": _avg_field(top_videos, "average_view_duration_seconds"),
+        "avg_view_percentage": _avg_field(top_videos, "average_view_percentage"),
+        "avg_retention_rate": _avg_field(top_videos, "average_view_percentage"),
+        "avg_engagement_likes": _avg_field(top_videos, "like_count"),
+        "top_view_count": max((v.get("view_count") or 0) for v in top_videos) if top_videos else 0,
+        "total_videos_analyzed": len(top_videos),
     }
+
+
+def _avg_field(videos: list[dict], field: str) -> float | None:
+    """Compute average of field across videos, ignoring None/0."""
+    vals = [v[field] for v in videos if v.get(field) and v[field] > 0]
+    return round(sum(vals) / len(vals), 2) if vals else None
 
 
 # ---------------------------------------------------------------------------
@@ -811,12 +1072,16 @@ def get_top_videos(
         List of dicts: [{video_id, view_count, title, transcript_path, bg_filename}, ...]
     """
     # Validate metric column
-    valid_metrics = {"view_count", "like_count", "comment_count", "reach", "watch_time_seconds"}
+    valid_metrics = {"view_count", "like_count", "comment_count", "reach", "watch_time_seconds",
+                      "average_view_duration_seconds", "average_view_percentage", "shares", "dislikes"}
     if metric not in valid_metrics:
         metric = "view_count"
 
     rows = conn.execute(f"""
-        SELECT vi.video_id, vi.{metric}, u.title,
+        SELECT vi.video_id, vi.view_count, vi.like_count, vi.comment_count,
+               vi.watch_time_seconds, vi.shares, vi.dislikes,
+               vi.average_view_duration_seconds, vi.average_view_percentage,
+               u.title,
                vi.transcript_path, vi.bg_filename,
                vi.published_at,
                CAST(vi.view_count AS REAL) / MAX(1, julianday('now') - julianday(vi.published_at)) as views_per_day

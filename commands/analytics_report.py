@@ -167,6 +167,23 @@ def cmd_analytics_report(channel_cfg, days: int = 30) -> None:
             for a in avoid:
                 print(f"    ✗ {a}")
 
+        # New OAuth-enriched metrics
+        avg_dur = gen_rec.get("avg_view_duration_seconds")
+        avg_ret = gen_rec.get("avg_view_percentage")
+        avg_likes = gen_rec.get("avg_engagement_likes")
+        top_vc = gen_rec.get("top_view_count")
+        total_analyzed = gen_rec.get("total_videos_analyzed")
+        if avg_dur is not None or avg_ret is not None:
+            print(f"\n  PERFORMANCE BENCHMARKS ({total_analyzed} videos analyzed):")
+            if avg_dur is not None:
+                print(f"    • Avg watch duration: {avg_dur}s per view")
+            if avg_ret is not None:
+                print(f"    • Avg retention rate: {avg_ret}% of video")
+            if avg_likes is not None:
+                print(f"    • Avg likes per video: {avg_likes}")
+            if top_vc:
+                print(f"    • Top video views: {top_vc:,}")
+
         print(f"\n{'='*60}\n")
 
     finally:

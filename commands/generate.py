@@ -39,6 +39,7 @@ def cmd_generate(
     keep_backlog: bool = False,
     pick_background: bool = False,
     multi_bg: bool = False,
+    upload_after: bool = False,
 ) -> None:
     if from_backlog:
         logger.info("Generating %d %s video(s) from backlog", count, fmt)
@@ -52,6 +53,7 @@ def cmd_generate(
                 count, channel_cfg, pick=pick,
                 no_audio=no_audio, keep_backlog=keep_backlog,
                 backgrounds=backgrounds,
+                upload_after=upload_after,
             )
         else:
             background = _pick_background_interactive() if pick_background else None
@@ -59,6 +61,7 @@ def cmd_generate(
                 count, channel_cfg, pick=pick,
                 no_audio=no_audio, keep_backlog=keep_backlog,
                 background=background,
+                upload_after=upload_after,
             )
     else:  # tweets
         if multi_bg:
@@ -69,6 +72,7 @@ def cmd_generate(
             produced = _generate_tweets_from_backlog(
                 count, channel_cfg, pick=pick,
                 no_audio=no_audio, keep_backlog=keep_backlog,
+                upload_after=upload_after,
             )
 
     print(f"\nGenerated {len(produced)}/{count} videos:")
@@ -88,23 +92,28 @@ def _generate_storytelling_from_backlog(
     keep_backlog: bool = False,
     background: str | None = None,
     backgrounds: list[str] | None = None,
+    upload_after: bool = False,
 ) -> list[str]:
     """Pull approved Reddit posts from the backlog and produce story videos.
 
     When `backgrounds` is provided (--multi-bg mode), TTS and subtitles are
     generated once per story, then one video is assembled per background. All
     variant paths are added to `produced`. Only one backlog item is consumed.
+
+    When upload_after is True, calls log_upload for each produced video so the
+    uploads table has transcript_path and bg_filename for analytics backfill.
     """
     from pipeline.db import get_connection
     from pipeline.backlog import (
         get_approved_stories, mark_story_used,
         get_recent_backgrounds, log_background_use,
     )
-    from formats.storytelling.generator import adapt_reddit_post
+    from pipeline.upload import log_upload, init_upload_table
 
     slug = channel_cfg.slug if channel_cfg else ""
 
     conn = get_connection()
+    init_upload_table(conn)
     try:
         rows = get_approved_stories(conn, slug)
         if not rows:
@@ -167,6 +176,13 @@ def _generate_storytelling_from_backlog(
                 for bg in backgrounds:
                     log_background_use(conn, slug, Path(bg).name)
                 conn.commit()
+                if upload_after and channel_cfg:
+                    for vp in video_paths:
+                        output_dir = Path(vp).parent
+                        tp = str(output_dir / "timestamps.json") if (output_dir / "timestamps.json").exists() else None
+                        bn = Path(vp).name
+                        log_upload(conn, slug, "youtube", "", "pending", "success",
+                                   transcript_path=tp, bg_filename=bn)
                 produced.extend(video_paths)
                 logger.info(
                     "Backlog story %d done → %d variant(s)", len(produced), len(video_paths)
@@ -193,6 +209,12 @@ def _generate_storytelling_from_backlog(
                         conn.commit()
                     log_background_use(conn, slug, Path(video_bg).name)
                     conn.commit()
+                    if upload_after and channel_cfg:
+                        output_dir = Path(video_path).parent
+                        tp = str(output_dir / "timestamps.json") if (output_dir / "timestamps.json").exists() else None
+                        bn = Path(video_bg).name
+                        log_upload(conn, slug, "youtube", "", "pending", "success",
+                                   transcript_path=tp, bg_filename=bn)
                     batch_used.append(Path(video_bg).name)
                     produced.append(video_path)
                     logger.info("Backlog story %d done → %s", len(produced), video_path)
@@ -212,16 +234,19 @@ def _generate_tweets_from_backlog(
     pick: bool = False,
     no_audio: bool = False,
     keep_backlog: bool = False,
+    upload_after: bool = False,
 ) -> list[str]:
     """Pull approved tweets from the backlog and produce tweet videos."""
     from pipeline.db import get_connection
     from pipeline.backlog import get_approved_tweets, mark_used
     from formats.tweets.renderer import render_tweet
     from formats.tweets.assembler import assemble_tweet_video
+    from pipeline.upload import log_upload, init_upload_table
 
     slug = channel_cfg.slug if channel_cfg else ""
 
     conn = get_connection()
+    init_upload_table(conn)
     try:
         rows = get_approved_tweets(conn, slug)
         if not rows:
@@ -257,6 +282,12 @@ def _generate_tweets_from_backlog(
                 _save_video_metadata(video_path, row["tweet_text"], "tweets")
                 if not keep_backlog:
                     mark_used(conn, "backlog_tweets", row["tweet_id"])
+                if upload_after and channel_cfg:
+                    output_dir = Path(video_path).parent
+                    tp = str(output_dir / "timestamps.json") if (output_dir / "timestamps.json").exists() else None
+                    bn = None  # tweet format doesn't use background clips
+                    log_upload(conn, slug, "youtube", "", "pending", "success",
+                               transcript_path=tp, bg_filename=bn)
                 produced.append(video_path)
                 logger.info("Tweet %d/%d done → %s", len(produced), count, video_path)
             else:

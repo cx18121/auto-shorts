@@ -53,7 +53,10 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-YOUTUBE_SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+YOUTUBE_SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/yt-analytics.readonly",
+]
 YOUTUBE_CATEGORY_ID = "22"  # People & Blogs
 RETRIABLE_HTTP_STATUS = {500, 502, 503, 504}
 MAX_RETRIES = 10
