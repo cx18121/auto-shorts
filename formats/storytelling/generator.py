@@ -22,7 +22,7 @@ _TEMPERATURE = 0.85
 _MAX_TOKENS  = 1024
 _MAX_RETRIES = 2
 
-_REQUIRED_KEYS = {"title", "hook_line", "story_text", "estimated_duration_seconds"}
+_REQUIRED_KEYS = {"title", "hook_line", "story_text", "estimated_duration_seconds", "description", "hashtags"}
 
 # ---------------------------------------------------------------------------
 # Niche tone directives (per-channel defaults)
@@ -78,10 +78,12 @@ edit:, update:, OP, [removed], [deleted], "thanks for the awards", upvotes, down
 
 OUTPUT FORMAT — return exactly this JSON:
 {{
-  "title": "YouTube title under 60 chars",
+  "title": "YouTube title under 60 chars, ends with '?', no ellipsis, no clickbait",
   "hook_line": "the opening sentence",
   "story_text": "full narration — natural speech, no markdown, {word_min}–{word_max} words",
-  "estimated_duration_seconds": integer
+  "estimated_duration_seconds": integer,
+  "description": "2-3 sentences that CONTINUE the scenario from the title (do NOT repeat it), ends with a period, 150-400 chars, no hashtags",
+  "hashtags": ["tag1", "tag2", "tag3"]
 }}"""
 
 
@@ -98,7 +100,8 @@ def adapt_reddit_post(
         feedback:     Optional rejection reason from a previous attempt to guide regeneration.
 
     Returns:
-        Script dict with keys: title, hook_line, story_text, estimated_duration_seconds.
+        Script dict with keys: title, hook_line, story_text, estimated_duration_seconds,
+        description, hashtags.
 
     Raises:
         ValueError:   If the post body is fewer than 50 words.
@@ -136,8 +139,10 @@ def adapt_reddit_post(
             story = _parse_json_shared(text)
             _validate(story)
             logger.info(
-                "Adapted Reddit post -> %r (est. %ds)",
-                story["title"], story.get("estimated_duration_seconds", 0),
+                "Adapted Reddit post -> title=%r desc=%r hashtags=%s (est. %ds)",
+                story["title"], story.get("description", "")[:50],
+                story.get("hashtags", []),
+                story.get("estimated_duration_seconds", 0),
             )
             return story
         except (json.JSONDecodeError, ValueError, KeyError) as e:
@@ -269,6 +274,10 @@ def _validate(story: dict[str, Any]) -> None:
         raise ValueError(f"Story JSON missing keys: {missing}")
     if not story.get("story_text"):
         raise ValueError("story_text is empty")
+    if not story.get("description"):
+        raise ValueError("description is empty")
+    if not isinstance(story.get("hashtags"), list):
+        raise ValueError("hashtags must be a list")
     story_text = story["story_text"]
     for phrase in story.get("overlay_phrases", []):
         if phrase not in story_text:

@@ -549,11 +549,6 @@ def generate_upload_metadata(
 ) -> dict:
     """Generate a YouTube/Instagram title, description, and hashtags using Claude Haiku.
 
-    Calls Anthropic Haiku (temperature 0.85) with the content text and
-    returns a merged dict with AI-suggested title, description, and
-    deduplicated hashtags (Claude's suggestions + niche_hashtags from
-    channels.yaml).
-
     Args:
         content_text:   The story body, tweet text, or video script excerpt.
         niche_hashtags: Channel-level hashtags from channels.yaml (no # prefix).
@@ -601,21 +596,21 @@ def generate_upload_metadata(
         ai_result = json.loads(strip_markdown_fences(text))
     except Exception as exc:
         logger.error("generate_upload_metadata: Claude call failed: %s", exc)
-        # Fallback title: truncate at last word boundary within 80 chars
+        # Fallback: truncate content text for title and description
         _t = content_text.strip()
         if len(_t) > 80:
             _t = _t[:80]
             last_space = _t.rfind(" ")
             if last_space > 40:
                 _t = _t[:last_space]
-            _t = _t.rstrip(",-") + "..."
-        # Fallback description: first 2 sentences, up to 200 chars
+            _t = _t.rstrip(",-")
+        # Fallback description: first 2 sentences, up to 200 chars (no ellipsis)
         _sentences = [s.strip() for s in content_text.split(". ") if s.strip()]
         _desc = ". ".join(_sentences[:2])
         if _desc and not _desc.endswith("."):
             _desc += "."
         if len(_desc) > 200:
-            _desc = _desc[:200].rstrip() + "..."
+            _desc = _desc[:200].rstrip()
         ai_result = {"title": _t, "description": _desc, "hashtags": []}
 
     title = ai_result.get("title", content_text[:80])

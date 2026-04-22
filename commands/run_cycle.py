@@ -135,12 +135,27 @@ def cmd_run_cycle(channel_cfg, publish_at: str | None = None) -> None:
             bg_name = None
 
         # ---------------------------------------------------------------
-        # Step 3: Generate upload metadata
+        # Step 3: Upload metadata — from story generation (storytelling) or Haiku call (tweets)
         # ---------------------------------------------------------------
-        metadata    = generate_upload_metadata(content_text, channel_cfg.hashtags, fmt)
-        title       = metadata["title"]
-        hashtags    = metadata["hashtags"]
-        desc_body   = metadata.get("description", "")
+        if fmt == "storytelling":
+            title       = story["title"]
+            desc_body   = story.get("description", "")
+            # Merge and deduplicate hashtags: story tags + channel niche tags
+            seen: set[str] = set()
+            story_tags  = story.get("hashtags", [])
+            merged: list[str] = []
+            for tag in story_tags + channel_cfg.hashtags:
+                normalized = tag.lstrip("#").lower()
+                if normalized and normalized not in seen:
+                    seen.add(normalized)
+                    merged.append(normalized)
+            hashtags    = merged
+            metadata    = {"title": title, "description": desc_body, "hashtags": hashtags}
+        else:
+            metadata    = generate_upload_metadata(content_text, channel_cfg.hashtags, fmt)
+            title       = metadata["title"]
+            hashtags    = metadata["hashtags"]
+            desc_body   = metadata.get("description", "")
         hashtag_str = " ".join(f"#{t}" for t in hashtags) if hashtags else ""
         description = "\n\n".join(filter(None, [desc_body, hashtag_str]))
 

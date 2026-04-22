@@ -156,20 +156,25 @@ def _generate_storytelling_from_backlog(
 
             if backgrounds is not None:
                 # Multi-bg mode: TTS once, assemble one video per background
-                # Generate metadata once so all variants share the same title/description/hashtags
-                metadata = _generate_video_metadata(
-                    story["story_text"], "storytelling",
-                    channel_cfg.hashtags if channel_cfg else [],
-                )
+                # Build metadata directly from story (title/desc/hashtags from one Haiku call)
+                niche_tags = channel_cfg.hashtags if channel_cfg else []
+                seen: set[str] = set()
+                merged: list[str] = []
+                for tag in story.get("hashtags", []) + niche_tags:
+                    normalized = tag.lstrip("#").lower()
+                    if normalized and normalized not in seen:
+                        seen.add(normalized)
+                        merged.append(normalized)
+                metadata = {
+                    "title": story["title"],
+                    "description": story.get("description", ""),
+                    "hashtags": merged,
+                }
                 video_paths = _assemble_multi_bg(
                     story["story_text"], backgrounds, no_audio, channel_cfg
                 )
                 for video_path in video_paths:
-                    _save_video_metadata(
-                        video_path, story["story_text"], "storytelling",
-                        channel_cfg.hashtags if channel_cfg else [],
-                        metadata=metadata,
-                    )
+                    _save_video_metadata(video_path, story["story_text"], "storytelling", metadata=metadata)
                 if not keep_backlog:
                     mark_story_used(conn, row["id"])
                     conn.commit()
@@ -200,10 +205,20 @@ def _generate_storytelling_from_backlog(
                     story["story_text"], video_bg, no_audio=no_audio
                 )
                 if video_path:
-                    _save_video_metadata(
-                        video_path, story["story_text"], "storytelling",
-                        channel_cfg.hashtags if channel_cfg else [],
-                    )
+                    niche_tags = channel_cfg.hashtags if channel_cfg else []
+                    seen: set[str] = set()
+                    merged: list[str] = []
+                    for tag in story.get("hashtags", []) + niche_tags:
+                        normalized = tag.lstrip("#").lower()
+                        if normalized and normalized not in seen:
+                            seen.add(normalized)
+                            merged.append(normalized)
+                    metadata = {
+                        "title": story["title"],
+                        "description": story.get("description", ""),
+                        "hashtags": merged,
+                    }
+                    _save_video_metadata(video_path, story["story_text"], "storytelling", metadata=metadata)
                     if not keep_backlog:
                         mark_story_used(conn, row["id"])
                         conn.commit()
@@ -698,9 +713,8 @@ def _save_video_metadata(
         content_text:    The story/tweet text (used to generate metadata if not pre-generated).
         format_type:    'storytelling' or 'tweets'.
         niche_hashtags: Channel-level hashtags from channels.yaml.
-        metadata:       Pre-generated metadata dict. If None, generates it via Claude Haiku.
-                        Pass a pre-generated dict to reuse the same title/description
-                        across multiple videos (e.g., multi-bg variants).
+        metadata:       Pre-generated metadata dict. If None, generates it via Claude Haiku
+                        for tweets only (storytelling always passes a pre-built dict).
     """
     from pipeline.upload import generate_upload_metadata, save_metadata_file
     try:
@@ -711,21 +725,6 @@ def _save_video_metadata(
         logger.warning("Failed to generate upload metadata: %s", e)
 
 
-def _generate_video_metadata(
-    content_text: str,
-    format_type: str,
-    niche_hashtags: list[str],
-) -> dict | None:
-    """Generate upload metadata (title/description/hashtags) via Claude Haiku.
-
-    Returns None on failure so callers can fall back gracefully.
-    """
-    from pipeline.upload import generate_upload_metadata
-    try:
-        return generate_upload_metadata(content_text, niche_hashtags, format_type)
-    except Exception as e:
-        logger.warning("Failed to generate upload metadata: %s", e)
-        return None
 
 
 def _generate_silent_audio(output_dir: str) -> dict:
