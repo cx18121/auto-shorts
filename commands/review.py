@@ -47,7 +47,10 @@ def _ai_review_batch(
     from pipeline.claude_utils import strip_markdown_fences
 
     content_type = "Reddit story" if source_label == "Reddit" else "tweet"
-    client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    client = anthropic.Anthropic(
+        api_key=config.ANTHROPIC_API_KEY,
+        base_url="https://api.anthropic.com",
+    )
     results: list[tuple[str, str]] = []
 
     # Chunk items into batches of _BATCH_SIZE
@@ -153,7 +156,10 @@ def _ai_review_item(item: dict, source_label: str, channel_cfg) -> tuple[str, st
     )
 
     import json
-    client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    client = anthropic.Anthropic(
+        api_key=config.ANTHROPIC_API_KEY,
+        base_url="https://api.anthropic.com",
+    )
     for attempt in range(1, _MAX_RETRIES + 1):
         try:
             resp = client.messages.create(

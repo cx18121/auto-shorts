@@ -117,8 +117,12 @@ def adapt_reddit_post(
     truncated_body = body[:4000]
     truncated_post = {**post, "body": truncated_body}
 
-    client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
-    prompt = _build_reddit_prompt(truncated_post, channel_slug, feedback=feedback)
+    client = anthropic.Anthropic(
+        api_key=config.ANTHROPIC_API_KEY,
+        base_url="https://api.anthropic.com",
+    )
+    analytics_context = _get_analytics_context(channel_slug)
+    prompt = _build_reddit_prompt(truncated_post, channel_slug, feedback=feedback, analytics_context=analytics_context)
 
     for attempt in range(1, _MAX_RETRIES + 2):
         try:
@@ -221,7 +225,8 @@ def _get_analytics_context(channel: str) -> str:
                 parts.append(f"  - {a}")
 
         return "\n".join(parts)
-    except Exception:
+    except Exception as exc:
+        logger.warning("_get_analytics_context: failed for channel=%s — %s", channel, exc)
         return ""
 
 
@@ -233,6 +238,7 @@ def _build_reddit_prompt(
     post: dict[str, Any],
     channel_slug: str,
     feedback: str = "",
+    analytics_context: str = "",
 ) -> str:
     """Build the user message for Reddit post adaptation using niche tone defaults."""
     tone_directive = _NICHE_TONES.get(
@@ -249,8 +255,6 @@ def _build_reddit_prompt(
         f"\nPREVIOUS ATTEMPT FEEDBACK (fix these issues in your next version):\n{feedback}\n"
         if feedback else ""
     )
-
-    analytics_context = _get_analytics_context(channel_slug)
 
     return _REDDIT_USER_PROMPT.format(
         guidance=guidance,

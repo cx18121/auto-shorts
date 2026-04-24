@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 import requests
@@ -144,20 +145,24 @@ def scrape_channel_subreddits(
     seen_ids: set[str] = set()
     all_posts: list[dict] = []
 
-    for subreddit_name in channel_cfg.subreddits:
+    def fetch_subreddit(name: str) -> list[dict]:
         try:
-            posts = scrape_subreddit_top(subreddit_name, time_filter, limit)
-            for post in posts:
-                if post["id"] not in seen_ids:
-                    seen_ids.add(post["id"])
-                    all_posts.append(post)
+            return scrape_subreddit_top(name, time_filter, limit)
         except Exception:
             logger.warning(
                 "scrape_channel_subreddits: error processing r/%s — skipping",
-                subreddit_name,
+                name,
                 exc_info=True,
             )
-        time.sleep(_REQUEST_DELAY)
+            return []
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {executor.submit(fetch_subreddit, name): name for name in channel_cfg.subreddits}
+        for future in as_completed(futures):
+            for post in future.result():
+                if post["id"] not in seen_ids:
+                    seen_ids.add(post["id"])
+                    all_posts.append(post)
 
     return all_posts
 

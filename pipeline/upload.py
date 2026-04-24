@@ -65,6 +65,8 @@ INSTAGRAM_BASE_URL = "https://graph.facebook.com/v19.0"
 INSTAGRAM_POLL_INTERVAL_SECONDS = 60
 INSTAGRAM_POLL_MAX_ATTEMPTS = 5
 
+_R2_CLIENT: Optional[object] = None  # cached boto3 S3 client, lazily created
+
 METADATA_MODEL = "claude-haiku-4-5-20251001"
 METADATA_MAX_TOKENS = 256
 METADATA_TEMPERATURE = 0.85
@@ -273,6 +275,7 @@ def upload_to_youtube(
         "status": {
             **status_block,
             "madeForKids": made_for_kids,
+            "selfDeclaredMadeForKids": made_for_kids,
         },
     }
 
@@ -331,6 +334,23 @@ def _resumable_upload(insert_request) -> dict:
 # Instagram
 # ---------------------------------------------------------------------------
 
+def _get_r2_client():
+    """Return a cached boto3 S3 client for Cloudflare R2, creating it once per session."""
+    global _R2_CLIENT
+    if _R2_CLIENT is None:
+        import boto3
+        from botocore.config import Config
+        _R2_CLIENT = boto3.client(
+            "s3",
+            endpoint_url=f"https://{CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
+            aws_access_key_id=CLOUDFLARE_R2_ACCESS_KEY,
+            aws_secret_access_key=CLOUDFLARE_R2_SECRET_KEY,
+            config=Config(signature_version="s3v4"),
+            region_name="auto",
+        )
+    return _R2_CLIENT
+
+
 def _upload_to_r2(video_path: Path) -> str:
     """Upload a local video file to Cloudflare R2 and return its public URL.
 
@@ -351,17 +371,7 @@ def _upload_to_r2(video_path: Path) -> str:
             "CLOUDFLARE_R2_BUCKET in .env"
         )
 
-    import boto3
-    from botocore.config import Config
-
-    client = boto3.client(
-        "s3",
-        endpoint_url=f"https://{CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
-        aws_access_key_id=CLOUDFLARE_R2_ACCESS_KEY,
-        aws_secret_access_key=CLOUDFLARE_R2_SECRET_KEY,
-        config=Config(signature_version="s3v4"),
-        region_name="auto",
-    )
+    client = _get_r2_client()
 
     key = f"videos/{video_path.name}"
     client.upload_file(str(video_path), CLOUDFLARE_R2_BUCKET, key)
@@ -434,8 +444,21 @@ def upload_to_instagram(
     }
 
     for attempt in range(1, INSTAGRAM_POLL_MAX_ATTEMPTS + 1):
-        status_resp = requests.get(status_url, params=status_params)
-        status_resp.raise_for_status()
+        for retry in range(MAX_RETRIES + 1):
+            try:
+                status_resp = requests.get(status_url, params=status_params)
+                status_resp.raise_for_status()
+                break
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code in RETRIABLE_HTTP_STATUS and retry < MAX_RETRIES:
+                    sleep_time = random.random() * (2 ** retry)
+                    logger.warning(
+                        "upload_to_instagram: HTTP %d on poll attempt %d, retry %d/%d, sleeping %.1fs",
+                        e.response.status_code, attempt, retry, MAX_RETRIES, sleep_time,
+                    )
+                    time.sleep(sleep_time)
+                else:
+                    raise
         status_code = status_resp.json().get("status_code", "")
         logger.info(
             "upload_to_instagram: poll attempt %d/%d status=%s",
@@ -577,7 +600,10 @@ def generate_upload_metadata(
         "Generate title, description, and hashtags for this content."
     )
 
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    client = anthropic.Anthropic(
+        api_key=ANTHROPIC_API_KEY,
+        base_url="https://api.anthropic.com",
+    )
     try:
         response = client.messages.create(
             model=METADATA_MODEL,
