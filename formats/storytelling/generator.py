@@ -22,6 +22,15 @@ _TEMPERATURE = 0.85
 _MAX_TOKENS  = 1024
 _MAX_RETRIES = 2
 
+_client: anthropic.Anthropic | None = None
+
+
+def _get_client() -> anthropic.Anthropic:
+    global _client
+    if _client is None:
+        _client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    return _client
+
 _REQUIRED_KEYS = {"title", "hook_line", "story_text", "estimated_duration_seconds", "description", "hashtags"}
 
 # ---------------------------------------------------------------------------
@@ -117,10 +126,7 @@ def adapt_reddit_post(
     truncated_body = body[:4000]
     truncated_post = {**post, "body": truncated_body}
 
-    client = anthropic.Anthropic(
-        api_key=config.ANTHROPIC_API_KEY,
-        base_url="https://api.anthropic.com",
-    )
+    client = _get_client()
     analytics_context = _get_analytics_context(channel_slug)
     prompt = _build_reddit_prompt(truncated_post, channel_slug, feedback=feedback, analytics_context=analytics_context)
 
@@ -130,7 +136,7 @@ def adapt_reddit_post(
                 model=_MODEL,
                 max_tokens=_MAX_TOKENS,
                 temperature=_TEMPERATURE,
-                system=_REDDIT_SYSTEM_PROMPT,
+                system=[{"type": "text", "text": _REDDIT_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
                 messages=[{"role": "user", "content": prompt}],
             )
             text = ""
@@ -247,9 +253,20 @@ def _build_reddit_prompt(
     guidance = tone_directive
     tone = tone_directive
     hook_patterns = "strong opening question or statement"
-    dur_min, dur_max = 45, 60
-    word_min, word_max = 100, 160
     vocabulary_notes = ""
+
+    gen: dict = {}
+    try:
+        import config as _config
+        ch = _config.CHANNELS.get(channel_slug)
+        if ch:
+            gen = ch.generation
+    except Exception:
+        pass
+    dur_min  = gen.get("dur_min",  45)
+    dur_max  = gen.get("dur_max",  60)
+    word_min = gen.get("word_min", 100)
+    word_max = gen.get("word_max", 160)
 
     feedback_block = (
         f"\nPREVIOUS ATTEMPT FEEDBACK (fix these issues in your next version):\n{feedback}\n"

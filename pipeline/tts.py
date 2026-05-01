@@ -6,8 +6,10 @@ Public API:
 """
 
 import base64
+import hashlib
 import json
 import logging
+import shutil
 import time
 from pathlib import Path
 from typing import Any
@@ -19,14 +21,20 @@ import config
 logger = logging.getLogger(__name__)
 
 _ELEVENLABS_BASE = "https://api.elevenlabs.io/v1"
+_TTS_CACHE_DIR = config.DATA_DIR / "tts_cache"
+
+
+def _cache_key(voice_id: str, text: str) -> str:
+    """Return a 16-char hex cache key for a (voice_id, text) pair."""
+    return hashlib.sha256(f"{voice_id}:{text}".encode()).hexdigest()[:16]
 
 
 def generate_tts(text: str, output_dir: str) -> dict[str, Any]:
-    """Generate TTS audio and word-level timestamps.
+    """Generate TTS audio and word-level timestamps, with local cache.
 
-    Calls the ElevenLabs /with-timestamps endpoint, saves the MP3 audio
-    and a JSON timestamp file into *output_dir*, then returns their paths
-    along with the audio duration.
+    Checks data/tts_cache/ for a prior result with the same voice + text.
+    On a hit, copies cached files to output_dir without calling the API.
+    On a miss, calls ElevenLabs, writes output_dir, and populates the cache.
 
     Args:
         text: The text to convert to speech.
@@ -42,6 +50,25 @@ def generate_tts(text: str, output_dir: str) -> dict[str, Any]:
     """
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
+
+    key = _cache_key(config.ELEVENLABS_VOICE_ID, text)
+    cache_dir = _TTS_CACHE_DIR / key
+    cached_audio = cache_dir / "narration.mp3"
+    cached_timestamps = cache_dir / "timestamps.json"
+
+    if cached_audio.exists() and cached_timestamps.exists():
+        logger.info("TTS cache hit (key=%s) — skipping ElevenLabs API call", key)
+        audio_path = out / "narration.mp3"
+        timestamps_path = out / "timestamps.json"
+        shutil.copy2(cached_audio, audio_path)
+        shutil.copy2(cached_timestamps, timestamps_path)
+        word_timestamps = json.loads(timestamps_path.read_text())
+        duration = word_timestamps[-1]["end_ms"] / 1000.0 if word_timestamps else 0.0
+        return {
+            "audio_path": str(audio_path),
+            "timestamps_path": str(timestamps_path),
+            "duration_seconds": duration,
+        }
 
     logger.info("Calling ElevenLabs TTS API (voice=%s) for: %.60r…", config.ELEVENLABS_VOICE_ID, text)
 
@@ -63,6 +90,12 @@ def generate_tts(text: str, output_dir: str) -> dict[str, Any]:
 
     duration = word_timestamps[-1]["end_ms"] / 1000.0 if word_timestamps else 0.0
     logger.info("Audio duration: %.2fs", duration)
+
+    # Populate cache
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(audio_path, cached_audio)
+    shutil.copy2(timestamps_path, cached_timestamps)
+    logger.debug("TTS cached → %s", cache_dir)
 
     return {
         "audio_path": str(audio_path),

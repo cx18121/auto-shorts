@@ -101,6 +101,7 @@ class ChannelConfig:
     instagram_user_id: str = ""
     youtube_made_for_kids: bool = False
     quality: dict = field(default_factory=dict)
+    generation: dict = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not _VALID_SLUG_RE.fullmatch(self.slug):

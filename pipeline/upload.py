@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import logging
 import random
+import socket
 import sqlite3
 import time
 from datetime import datetime, timezone, timedelta
@@ -63,9 +64,10 @@ MAX_RETRIES = 10
 
 INSTAGRAM_BASE_URL = "https://graph.facebook.com/v19.0"
 INSTAGRAM_POLL_INTERVAL_SECONDS = 60
-INSTAGRAM_POLL_MAX_ATTEMPTS = 5
+INSTAGRAM_POLL_MAX_ATTEMPTS = 15
 
 _R2_CLIENT: Optional[object] = None  # cached boto3 S3 client, lazily created
+_ANTHROPIC_CLIENT: Optional[anthropic.Anthropic] = None  # module-level singleton
 
 METADATA_MODEL = "claude-haiku-4-5-20251001"
 METADATA_MAX_TOKENS = 256
@@ -279,7 +281,7 @@ def upload_to_youtube(
         },
     }
 
-    media = MediaFileUpload(str(video_path), chunksize=-1, resumable=True)
+    media = MediaFileUpload(str(video_path), chunksize=8 * 1024 * 1024, resumable=True)
     insert_request = youtube.videos().insert(
         part=",".join(body.keys()),
         body=body,
@@ -304,12 +306,13 @@ def _resumable_upload(insert_request) -> dict:
     Raises:
         HttpError: On non-retriable errors or after MAX_RETRIES exhausted.
     """
+    response = None
     retry = 0
-    while retry <= MAX_RETRIES:
+    while response is None:
         try:
-            _, response = insert_request.next_chunk()
-            logger.debug("_resumable_upload: upload complete response=%s", response)
-            return response
+            status, response = insert_request.next_chunk()
+            if status:
+                logger.debug("_resumable_upload: %.0f%% uploaded", status.progress() * 100)
         except HttpError as e:
             if e.resp.status in RETRIABLE_HTTP_STATUS:
                 retry += 1
@@ -328,11 +331,35 @@ def _resumable_upload(insert_request) -> dict:
             else:
                 logger.error("_resumable_upload: non-retriable HTTP %d", e.resp.status)
                 raise
+        except (socket.timeout, TimeoutError, OSError) as e:
+            retry += 1
+            if retry > MAX_RETRIES:
+                logger.error(
+                    "_resumable_upload: max retries (%d) exceeded after transport error: %s",
+                    MAX_RETRIES, e,
+                )
+                raise
+            sleep_time = random.random() * (2 ** retry)
+            logger.warning(
+                "_resumable_upload: transport error '%s', retry %d/%d, sleeping %.1fs",
+                e, retry, MAX_RETRIES, sleep_time,
+            )
+            time.sleep(sleep_time)
+    logger.debug("_resumable_upload: upload complete response=%s", response)
+    return response
 
 
 # ---------------------------------------------------------------------------
 # Instagram
 # ---------------------------------------------------------------------------
+
+def _get_anthropic_client() -> anthropic.Anthropic:
+    """Return a module-level cached Anthropic client."""
+    global _ANTHROPIC_CLIENT
+    if _ANTHROPIC_CLIENT is None:
+        _ANTHROPIC_CLIENT = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    return _ANTHROPIC_CLIENT
+
 
 def _get_r2_client():
     """Return a cached boto3 S3 client for Cloudflare R2, creating it once per session."""
@@ -600,16 +627,13 @@ def generate_upload_metadata(
         "Generate title, description, and hashtags for this content."
     )
 
-    client = anthropic.Anthropic(
-        api_key=ANTHROPIC_API_KEY,
-        base_url="https://api.anthropic.com",
-    )
+    client = _get_anthropic_client()
     try:
         response = client.messages.create(
             model=METADATA_MODEL,
             temperature=METADATA_TEMPERATURE,
             max_tokens=METADATA_MAX_TOKENS,
-            system=system_prompt,
+            system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": user_prompt}],
         )
         text = ""

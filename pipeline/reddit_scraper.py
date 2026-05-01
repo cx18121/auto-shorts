@@ -29,6 +29,7 @@ INVALID_SELFTEXT: frozenset[str] = frozenset({"", "[removed]", "[deleted]"})
 
 WINDOW_MAP: dict[str, str] = {
     "24h": "day",
+    "week": "week",
     "month": "month",
     "year": "year",
 }

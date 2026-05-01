@@ -3,6 +3,9 @@ commands/review.py — Backlog review command (interactive or AI-assisted).
 """
 
 import logging
+from typing import Optional
+
+import anthropic
 
 import config
 
@@ -12,6 +15,23 @@ _HAIKU_MODEL = "claude-haiku-4-5-20251001"
 _MAX_RETRIES = 3
 _BATCH_SIZE = 50
 _CONTENT_TRUNCATE = 400
+
+_REVIEW_SYSTEM_PROMPT = (
+    "You are a YouTube Shorts content reviewer. "
+    "Evaluate whether content would make an engaging, high-quality YouTube Short. "
+    "Approve if it has a strong hook, emotional engagement, and suits the channel niche. "
+    "Reject if it is boring, too short, off-topic, or low quality. "
+    "Always return valid JSON and nothing else — no markdown, no commentary."
+)
+
+_client: Optional[anthropic.Anthropic] = None
+
+
+def _get_client() -> anthropic.Anthropic:
+    global _client
+    if _client is None:
+        _client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    return _client
 
 
 def _build_content_block(item: dict, source_label: str) -> str:
@@ -43,14 +63,10 @@ def _ai_review_batch(
     """
     import json
     import time
-    import anthropic
     from pipeline.claude_utils import strip_markdown_fences
 
     content_type = "Reddit story" if source_label == "Reddit" else "tweet"
-    client = anthropic.Anthropic(
-        api_key=config.ANTHROPIC_API_KEY,
-        base_url="https://api.anthropic.com",
-    )
+    client = _get_client()
     results: list[tuple[str, str]] = []
 
     # Chunk items into batches of _BATCH_SIZE
@@ -65,15 +81,12 @@ def _ai_review_batch(
             items_text += f"\n--- Item {i} ---\n{block}\n"
 
         prompt = (
-            f"You are reviewing {content_type}s for a YouTube Shorts channel called \"{channel_cfg.name}\".\n"
-            f"The channel niche is: {channel_cfg.slug.replace('-', ' ')}.\n\n"
-            f"For each numbered item below, decide whether it would make an engaging, high-quality YouTube Short.\n"
-            f"Approve if it has a strong hook, emotional engagement, and suits the niche.\n"
-            f"Reject if it is boring, too short, off-topic, or low quality.\n\n"
+            f"Channel: \"{channel_cfg.name}\" (niche: {channel_cfg.slug.replace('-', ' ')})\n"
+            f"Content type: {content_type}\n\n"
             f"ITEMS TO REVIEW:\n{items_text}\n"
             f"Return a JSON array with exactly {n} objects, one per item, in order:\n"
             f'[{{"item": 1, "decision": "approve" or "reject", "reason": "one sentence"}}, ...]\n'
-            f"Return ONLY the JSON array, no other text."
+            f"Return ONLY the JSON array."
         )
 
         max_tokens = max(256, n * 64)
@@ -84,6 +97,7 @@ def _ai_review_batch(
                     model=_HAIKU_MODEL,
                     max_tokens=max_tokens,
                     temperature=0.2,
+                    system=[{"type": "text", "text": _REVIEW_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
                     messages=[{"role": "user", "content": prompt}],
                 )
                 raw_text = ""
@@ -138,34 +152,28 @@ def _ai_review_item(item: dict, source_label: str, channel_cfg) -> tuple[str, st
 
     Returns (decision, reason) where decision is 'approve' or 'reject'.
     """
+    import json
     import time
-    import anthropic
     from pipeline.claude_utils import strip_markdown_fences
 
     content_block = _build_content_block(item, source_label)
     content_type = "Reddit story" if source_label == "Reddit" else "tweet"
 
     prompt = (
-        f"You are reviewing {content_type}s for a YouTube Shorts channel called \"{channel_cfg.name}\".\n"
-        f"The channel niche is: {channel_cfg.slug.replace('-', ' ')}.\n\n"
-        f"Decide whether this {content_type} would make an engaging, high-quality YouTube Short.\n"
-        f"Approve if it has a strong hook, emotional engagement, and suits the niche.\n"
-        f"Reject if it is boring, too short, off-topic, or low quality.\n\n"
+        f"Channel: \"{channel_cfg.name}\" (niche: {channel_cfg.slug.replace('-', ' ')})\n"
+        f"Content type: {content_type}\n\n"
         f"CONTENT:\n{content_block}\n\n"
         f'Return exactly this JSON: {{"decision": "approve" or "reject", "reason": "one sentence"}}'
     )
 
-    import json
-    client = anthropic.Anthropic(
-        api_key=config.ANTHROPIC_API_KEY,
-        base_url="https://api.anthropic.com",
-    )
+    client = _get_client()
     for attempt in range(1, _MAX_RETRIES + 1):
         try:
             resp = client.messages.create(
                 model=_HAIKU_MODEL,
                 max_tokens=128,
                 temperature=0.2,
+                system=[{"type": "text", "text": _REVIEW_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
                 messages=[{"role": "user", "content": prompt}],
             )
             resp_text = ""
