@@ -1,6 +1,6 @@
 # channels.yaml.example
-# Copy this to channels.yaml and fill in your ElevenLabs voice IDs.
-# All other fields are pre-populated and ready to use.
+# Copy this to channels.yaml and fill in your credentials.
+# All other fields are pre-populated with sensible defaults.
 
 hypothetical-scenarios:
   name: "Hypothetical Scenarios"
@@ -19,11 +19,17 @@ hypothetical-scenarios:
     - storytime
     - hypothetical
   instagram_user_id: ""  # numeric IG Business account ID from setup-instagram
+  youtube_made_for_kids: false
   quality:
     min_upvotes: 300
     min_words: 200
     max_words: 1200
     min_likes: 1000
+  generation:
+    dur_min: 45   # target narration duration in seconds (lower bound)
+    dur_max: 60   # target narration duration in seconds (upper bound)
+    word_min: 100 # target word count for generated script (lower bound)
+    word_max: 160 # target word count for generated script (upper bound)
 
 relationships:
   name: "Relationships"
@@ -44,12 +50,18 @@ relationships:
     - shorts
     - storytime
     - relationships
-  instagram_user_id: ""  # numeric IG Business account ID from setup-instagram
+  instagram_user_id: ""
+  youtube_made_for_kids: false
   quality:
     min_upvotes: 1000
     min_words: 400
     max_words: 1200
     min_likes: 1000
+  generation:
+    dur_min: 50
+    dur_max: 70
+    word_min: 120
+    word_max: 180
 
 finance-hustle:
   name: "Finance & Hustle"
@@ -70,12 +82,18 @@ finance-hustle:
     - shorts
     - finance
     - hustle
-  instagram_user_id: ""  # numeric IG Business account ID from setup-instagram
+  instagram_user_id: ""
+  youtube_made_for_kids: false
   quality:
     min_upvotes: 500
     min_words: 200
     max_words: 800
     min_likes: 1000
+  generation:
+    dur_min: 40
+    dur_max: 55
+    word_min: 90
+    word_max: 145
 
 viral-tweets:
   name: "Viral Tweets"
@@ -91,9 +109,11 @@ viral-tweets:
     - shorts
     - viral
     - twitter
-  instagram_user_id: ""  # numeric IG Business account ID from setup-instagram
+  instagram_user_id: ""
+  youtube_made_for_kids: false
   quality:
     min_upvotes: 0
     min_words: 0
     max_words: 9999
     min_likes: 5000
+  # generation: block is only used by storytelling format channels
